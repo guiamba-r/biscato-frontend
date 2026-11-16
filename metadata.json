@@ -2,5 +2,7 @@
   "name": "Biscato — Plataforma de Serviços e Custódia",
   "description": "Marketplace de intermediação, comparação de orçamentos, verificação de prestadores e pagamento seguro em custódia (M-Pesa, e-Mola, Mkesh) em Moçambique.",
   "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }

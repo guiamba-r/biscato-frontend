@@ -1,4 +1,4 @@
-export type AppTab = 'explore' | 'opportunities' | 'proposals' | 'escrow' | 'business';
+export type AppTab = 'home' | 'explore' | 'opportunities' | 'proposals' | 'escrow' | 'business';
 
 export type UserRole = 'client' | 'provider';
 

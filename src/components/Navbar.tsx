@@ -1,4 +1,4 @@
-import { Briefcase, Compass, FileCheck2, Landmark, Plus, ShieldCheck } from 'lucide-react';
+import { Briefcase, Compass, FileCheck2, Home, Plus, ShieldCheck } from 'lucide-react';
 import type { AppTab } from '../types/biscato';
 
 interface NavbarProps {
@@ -8,11 +8,11 @@ interface NavbarProps {
 }
 
 const NAV_ITEMS: { id: AppTab; label: string; shortLabel: string; icon: typeof Compass }[] = [
+  { id: 'home', label: 'Início', shortLabel: 'Início', icon: Home },
   { id: 'explore', label: 'Explorar', shortLabel: 'Explorar', icon: Compass },
   { id: 'opportunities', label: 'Oportunidades', shortLabel: 'Pedidos', icon: Briefcase },
   { id: 'proposals', label: 'Propostas', shortLabel: 'Propostas', icon: FileCheck2 },
   { id: 'escrow', label: 'Custódia', shortLabel: 'Custódia', icon: ShieldCheck },
-  { id: 'business', label: 'Negócio', shortLabel: 'Negócio', icon: Landmark },
 ];
 
 export function Navbar({ activeTab, onSelectTab, onOpenNewRequest }: NavbarProps) {
@@ -23,8 +23,8 @@ export function Navbar({ activeTab, onSelectTab, onOpenNewRequest }: NavbarProps
           {/* Zone 1: Brand mark + wordmark (single line, no descriptor/badges) */}
           <button
             type="button"
-            onClick={() => onSelectTab('explore')}
-            className="flex items-center gap-2.5 whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#066E53] rounded-lg py-1"
+            onClick={() => onSelectTab('home')}
+            className="flex items-center gap-2.5 whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#066E53] rounded-lg py-1 cursor-pointer"
           >
             <img
               src="/assets/aistudio/biscato_logo_4fc64c75.png"

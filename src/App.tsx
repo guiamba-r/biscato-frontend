@@ -8,6 +8,7 @@ import { BusinessModelView } from './components/BusinessModelView';
 import { CompareProposalsView } from './components/CompareProposalsView';
 import { EscrowView } from './components/EscrowView';
 import { ExploreView } from './components/ExploreView';
+import { LandingView } from './components/LandingView';
 import { Navbar } from './components/Navbar';
 import { NewRequestModal } from './components/NewRequestModal';
 import { OpportunitiesView } from './components/OpportunitiesView';
@@ -32,7 +33,7 @@ import type {
 } from './types/biscato';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<AppTab>('explore');
+  const [activeTab, setActiveTab] = useState<AppTab>('home');
   const [userRole, setUserRole] = useState<UserRole>('client');
   const [clientPlan, setClientPlan] = useState<ClientPlanState>('free_trial_30d');
   const [providerSubState, setProviderSubState] = useState<ProviderSubscriptionState>('active');
@@ -339,6 +340,17 @@ export default function App() {
       )}
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-24 md:pb-12">
+        {activeTab === 'home' && (
+          <LandingView
+            onNavigate={(tab) => setActiveTab(tab)}
+            onSelectRoleAndNavigate={(role, tab) => {
+              setUserRole(role);
+              setActiveTab(tab);
+            }}
+            onOpenNewRequest={() => handleOpenNewRequest()}
+          />
+        )}
+
         {activeTab === 'explore' && (
           <ExploreView
             providers={providers}

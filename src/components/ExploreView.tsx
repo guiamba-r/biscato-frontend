@@ -10,10 +10,10 @@ import {
   Paintbrush,
   Search,
   ShieldCheck,
-  Sparkles,
   Star,
   Truck,
   Wrench,
+  X,
   Zap,
 } from 'lucide-react';
 import { MOZAMBIQUE_PROVINCES, SERVICE_CATEGORIES } from '../data/biscatoData';
@@ -61,21 +61,60 @@ export function ExploreView({
   onNavigateOpportunities,
   onNavigateEscrow,
 }: ExploreViewProps) {
+  const MAX_PRICE_BOUND = 10000;
   const [searchQuery, setSearchQuery] = useState('');
+  const [neighborhoodQuery, setNeighborhoodQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<ServiceCategoryId>('all');
   const [selectedProvince, setSelectedProvince] = useState<ProvinceName>('Todas as Províncias');
+  const [minBudgetMT, setMinBudgetMT] = useState<number>(0);
+  const [maxBudgetMT, setMaxBudgetMT] = useState<number>(MAX_PRICE_BOUND);
+
+  const normalizeText = (value: string) =>
+    value
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .trim();
+
+  const availableNeighborhoods = Array.from(
+    new Set(
+      providers
+        .filter((p) => selectedProvince === 'Todas as Províncias' || p.province === selectedProvince)
+        .map((p) => p.neighborhood)
+    )
+  );
+
+  const isPriceFiltered = minBudgetMT > 0 || maxBudgetMT < MAX_PRICE_BOUND;
+
+  const handleMinBudgetChange = (value: number) => {
+    setMinBudgetMT(Math.min(value, maxBudgetMT));
+  };
+
+  const handleMaxBudgetChange = (value: number) => {
+    setMaxBudgetMT(Math.max(value, minBudgetMT));
+  };
 
   const filteredProviders = providers.filter((p) => {
     const matchesCategory = selectedCategory === 'all' || p.category === selectedCategory;
     const matchesProvince = selectedProvince === 'Todas as Províncias' || p.province === selectedProvince;
-    const q = searchQuery.trim().toLowerCase();
+    const q = normalizeText(searchQuery);
+    const nq = normalizeText(neighborhoodQuery);
+
     const matchesSearch =
       !q ||
-      p.name.toLowerCase().includes(q) ||
-      p.specialty.toLowerCase().includes(q) ||
-      p.neighborhood.toLowerCase().includes(q) ||
-      p.province.toLowerCase().includes(q);
-    return matchesCategory && matchesProvince && matchesSearch;
+      normalizeText(p.name).includes(q) ||
+      normalizeText(p.specialty).includes(q) ||
+      normalizeText(p.bio).includes(q);
+
+    const matchesNeighborhood =
+      !nq ||
+      normalizeText(p.neighborhood).includes(nq) ||
+      normalizeText(p.province).includes(nq);
+
+    const matchesBudget =
+      p.hourlyOrBaseMT >= minBudgetMT && p.hourlyOrBaseMT <= maxBudgetMT;
+
+    return matchesCategory && matchesProvince && matchesSearch && matchesNeighborhood && matchesBudget;
   });
 
   return (
@@ -130,19 +169,47 @@ export function ExploreView({
         </div>
       </section>
 
-      {/* Search & Province Filter Bar */}
-      <section className="bg-white border border-[#E1E7E4] rounded-2xl p-3 sm:p-4">
+      {/* Search by Service, Neighborhood/Zone & Province Filter Bar */}
+      <section className="bg-white border border-[#E1E7E4] rounded-2xl p-3.5 sm:p-4 space-y-3">
         <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
-          <div className="md:col-span-7 relative">
+          <div className="md:col-span-4 relative">
             <Search className="w-4 h-4 text-[#52635D] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" aria-hidden="true" />
             <input
               type="search"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Pesquisar canalizador, eletricista, carpinteiro ou bairro..."
+              placeholder="Serviço ou técnico (ex: canalizador)..."
               aria-label="Pesquisar profissionais e serviços"
               className="w-full h-11 pl-10 pr-4 rounded-xl bg-[#F6F7F5] border border-transparent focus:border-[#066E53] focus:bg-white text-sm text-[#10201B] placeholder:text-[#6B7C76] outline-none transition-colors"
             />
+          </div>
+
+          <div className="md:col-span-3 relative">
+            <MapPin className="w-4 h-4 text-[#F4811F] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" aria-hidden="true" />
+            <input
+              type="text"
+              list="mz-neighborhoods-list"
+              value={neighborhoodQuery}
+              onChange={(e) => setNeighborhoodQuery(e.target.value)}
+              placeholder="Bairro ou zona (ex: Polana, Matola)..."
+              aria-label="Filtrar prestadores por bairro ou zona em Moçambique"
+              className="w-full h-11 pl-10 pr-9 rounded-xl bg-[#F6F7F5] border border-transparent focus:border-[#066E53] focus:bg-white text-sm text-[#10201B] placeholder:text-[#6B7C76] outline-none transition-colors"
+            />
+            {neighborhoodQuery && (
+              <button
+                type="button"
+                onClick={() => setNeighborhoodQuery('')}
+                aria-label="Limpar filtro de bairro ou zona"
+                className="w-7 h-7 rounded-lg flex items-center justify-center text-[#52635D] hover:text-[#10201B] hover:bg-[#E1E7E4]/60 absolute right-2 top-1/2 -translate-y-1/2 cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" aria-hidden="true" />
+              </button>
+            )}
+            <datalist id="mz-neighborhoods-list">
+              {availableNeighborhoods.map((zone) => (
+                <option key={zone} value={zone} />
+              ))}
+            </datalist>
           </div>
 
           <div className="md:col-span-3 relative">
@@ -169,6 +236,123 @@ export function ExploreView({
             >
               Publicar Pedido
             </button>
+          </div>
+        </div>
+
+        {/* Interactive Neighborhood / Zone Quick Filters */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pt-1">
+          <span className="text-xs font-medium text-[#52635D] whitespace-nowrap shrink-0 mr-1">
+            Zonas rápidas:
+          </span>
+          <button
+            type="button"
+            onClick={() => setNeighborhoodQuery('')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 transition-colors cursor-pointer ${
+              !neighborhoodQuery
+                ? 'bg-[#066E53] text-white'
+                : 'bg-[#F6F7F5] text-[#52635D] hover:text-[#10201B]'
+            }`}
+          >
+            Todos os bairros
+          </button>
+          {availableNeighborhoods.map((zone) => {
+            const isZoneActive = normalizeText(neighborhoodQuery) === normalizeText(zone);
+            return (
+              <button
+                key={zone}
+                type="button"
+                onClick={() => setNeighborhoodQuery(isZoneActive ? '' : zone)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap shrink-0 transition-colors cursor-pointer ${
+                  isZoneActive
+                    ? 'bg-[#066E53] text-white font-semibold'
+                    : 'bg-[#F6F7F5] text-[#52635D] hover:text-[#10201B]'
+                }`}
+              >
+                {zone}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Budget Range Filter (Min & Max MT Sliders + Presets) */}
+        <div className="pt-3 border-t border-[#E1E7E4] grid grid-cols-1 lg:grid-cols-12 gap-4 items-center">
+          <div className="lg:col-span-5 flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <span className="text-xs font-semibold text-[#10201B]">
+                Faixa de orçamento (valor base)
+              </span>
+              <p className="font-mono text-xs font-semibold text-[#066E53] tabular-nums mt-0.5">
+                {formatMT(minBudgetMT)} — {maxBudgetMT >= MAX_PRICE_BOUND ? `${formatMT(MAX_PRICE_BOUND)}+` : formatMT(maxBudgetMT)}
+              </p>
+            </div>
+
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {[
+                { label: 'Todos', min: 0, max: MAX_PRICE_BOUND },
+                { label: 'Até 3.500 MT', min: 0, max: 3500 },
+                { label: '3.500–6.000 MT', min: 3500, max: 6000 },
+                { label: '+6.000 MT', min: 6000, max: MAX_PRICE_BOUND },
+              ].map((preset) => {
+                const active = minBudgetMT === preset.min && maxBudgetMT === preset.max;
+                return (
+                  <button
+                    key={preset.label}
+                    type="button"
+                    onClick={() => {
+                      setMinBudgetMT(preset.min);
+                      setMaxBudgetMT(preset.max);
+                    }}
+                    className={`px-2.5 py-1.5 rounded-lg text-[11px] font-semibold whitespace-nowrap transition-colors cursor-pointer ${
+                      active
+                        ? 'bg-[#066E53] text-white'
+                        : 'bg-[#F6F7F5] text-[#52635D] hover:text-[#10201B]'
+                    }`}
+                  >
+                    {preset.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="lg:col-span-7 grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
+            <label className="block space-y-1">
+              <div className="flex items-center justify-between text-xs text-[#52635D]">
+                <span>Orçamento mínimo</span>
+                <span className="font-mono font-semibold text-[#10201B] tabular-nums">
+                  {formatMT(minBudgetMT)}
+                </span>
+              </div>
+              <input
+                type="range"
+                min={0}
+                max={MAX_PRICE_BOUND}
+                step={500}
+                value={minBudgetMT}
+                onChange={(e) => handleMinBudgetChange(Number(e.target.value))}
+                aria-label="Orçamento mínimo em Meticais"
+                className="w-full accent-[#066E53] cursor-pointer"
+              />
+            </label>
+
+            <label className="block space-y-1">
+              <div className="flex items-center justify-between text-xs text-[#52635D]">
+                <span>Orçamento máximo</span>
+                <span className="font-mono font-semibold text-[#10201B] tabular-nums">
+                  {maxBudgetMT >= MAX_PRICE_BOUND ? `${formatMT(MAX_PRICE_BOUND)}+` : formatMT(maxBudgetMT)}
+                </span>
+              </div>
+              <input
+                type="range"
+                min={0}
+                max={MAX_PRICE_BOUND}
+                step={500}
+                value={maxBudgetMT}
+                onChange={(e) => handleMaxBudgetChange(Number(e.target.value))}
+                aria-label="Orçamento máximo em Meticais"
+                className="w-full accent-[#F4811F] cursor-pointer"
+              />
+            </label>
           </div>
         </div>
       </section>
@@ -298,7 +482,9 @@ export function ExploreView({
               Nenhum profissional encontrado para este filtro
             </p>
             <p className="text-sm text-[#52635D] max-w-md mx-auto">
-              Publique o seu pedido mesmo assim para notificar técnicos próximos em {selectedProvince}.
+              Publique o seu pedido mesmo assim para notificar técnicos próximos
+              {neighborhoodQuery ? ` em ${neighborhoodQuery}` : ` em ${selectedProvince}`}
+              {isPriceFiltered ? ` entre ${formatMT(minBudgetMT)} e ${formatMT(maxBudgetMT)}` : ''}.
             </p>
             <button
               type="button"
@@ -306,6 +492,9 @@ export function ExploreView({
                 setSelectedCategory('all');
                 setSelectedProvince('Todas as Províncias');
                 setSearchQuery('');
+                setNeighborhoodQuery('');
+                setMinBudgetMT(0);
+                setMaxBudgetMT(MAX_PRICE_BOUND);
               }}
               className="inline-flex items-center px-4 py-2 rounded-xl bg-[#066E53] text-white text-sm font-semibold cursor-pointer"
             >
