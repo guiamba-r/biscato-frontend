@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ShieldCheck, X } from 'lucide-react';
 import { MOZAMBIQUE_PROVINCES, SERVICE_CATEGORIES } from '../data/biscatoData';
 import type { ProvinceName, ServiceCategoryId, ServiceRequest } from '../types/biscato';
@@ -26,6 +26,12 @@ export function NewRequestModal({
   const [budgetMinMT, setBudgetMinMT] = useState('2500');
   const [budgetMaxMT, setBudgetMaxMT] = useState('4500');
   const [description, setDescription] = useState('');
+
+  useEffect(() => {
+    if (isOpen) {
+      setCategory(initialCategory);
+    }
+  }, [isOpen, initialCategory]);
 
   if (!isOpen) return null;
 

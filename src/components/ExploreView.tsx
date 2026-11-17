@@ -68,6 +68,7 @@ export function ExploreView({
   const [selectedProvince, setSelectedProvince] = useState<ProvinceName>('Todas as Províncias');
   const [minBudgetMT, setMinBudgetMT] = useState<number>(0);
   const [maxBudgetMT, setMaxBudgetMT] = useState<number>(MAX_PRICE_BOUND);
+  const [minRating, setMinRating] = useState<number>(0);
 
   const normalizeText = (value: string) =>
     value
@@ -114,7 +115,16 @@ export function ExploreView({
     const matchesBudget =
       p.hourlyOrBaseMT >= minBudgetMT && p.hourlyOrBaseMT <= maxBudgetMT;
 
-    return matchesCategory && matchesProvince && matchesSearch && matchesNeighborhood && matchesBudget;
+    const matchesRating = p.rating >= minRating;
+
+    return (
+      matchesCategory &&
+      matchesProvince &&
+      matchesSearch &&
+      matchesNeighborhood &&
+      matchesBudget &&
+      matchesRating
+    );
   });
 
   return (
@@ -355,6 +365,56 @@ export function ExploreView({
             </label>
           </div>
         </div>
+
+        {/* Minimum Star Rating Filter */}
+        <div className="pt-3 border-t border-[#E1E7E4] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <Star className="w-4 h-4 fill-[#F4811F] text-[#F4811F] shrink-0" aria-hidden="true" />
+            <span className="text-xs font-semibold text-[#10201B]">
+              Classificação mínima
+            </span>
+            {minRating > 0 && (
+              <span className="text-xs text-[#066E53] font-mono font-semibold tabular-nums">
+                · {minRating.toFixed(1).replace('.', ',')}+ estrelas
+              </span>
+            )}
+          </div>
+
+          <div className="flex items-center gap-1.5 flex-wrap" role="group" aria-label="Filtrar por classificação mínima em estrelas">
+            {[
+              { label: 'Todas', value: 0 },
+              { label: '4,0+', value: 4.0 },
+              { label: '4,5+', value: 4.5 },
+              { label: '4,8+', value: 4.8 },
+              { label: '4,9+', value: 4.9 },
+            ].map((opt) => {
+              const active = minRating === opt.value;
+              return (
+                <button
+                  key={opt.label}
+                  type="button"
+                  onClick={() => setMinRating(opt.value)}
+                  aria-pressed={active}
+                  className={`inline-flex items-center gap-1 px-3 py-1.5 min-h-[34px] rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 transition-colors cursor-pointer tabular-nums ${
+                    active
+                      ? 'bg-[#066E53] text-white'
+                      : 'bg-[#F6F7F5] text-[#52635D] hover:text-[#10201B]'
+                  }`}
+                >
+                  {opt.value > 0 && (
+                    <Star
+                      className={`w-3.5 h-3.5 shrink-0 ${
+                        active ? 'fill-[#F4811F] text-[#F4811F]' : 'fill-[#F4811F] text-[#F4811F]'
+                      }`}
+                      aria-hidden="true"
+                    />
+                  )}
+                  <span>{opt.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
       </section>
 
       {/* Hero Banner inspired by Card_4ef9c085.png */}
@@ -484,7 +544,8 @@ export function ExploreView({
             <p className="text-sm text-[#52635D] max-w-md mx-auto">
               Publique o seu pedido mesmo assim para notificar técnicos próximos
               {neighborhoodQuery ? ` em ${neighborhoodQuery}` : ` em ${selectedProvince}`}
-              {isPriceFiltered ? ` entre ${formatMT(minBudgetMT)} e ${formatMT(maxBudgetMT)}` : ''}.
+              {isPriceFiltered ? ` entre ${formatMT(minBudgetMT)} e ${formatMT(maxBudgetMT)}` : ''}
+              {minRating > 0 ? ` com avaliação ${minRating.toFixed(1).replace('.', ',')}+ ★` : ''}.
             </p>
             <button
               type="button"
@@ -495,6 +556,7 @@ export function ExploreView({
                 setNeighborhoodQuery('');
                 setMinBudgetMT(0);
                 setMaxBudgetMT(MAX_PRICE_BOUND);
+                setMinRating(0);
               }}
               className="inline-flex items-center px-4 py-2 rounded-xl bg-[#066E53] text-white text-sm font-semibold cursor-pointer"
             >
