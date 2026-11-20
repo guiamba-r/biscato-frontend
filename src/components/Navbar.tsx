@@ -3,8 +3,11 @@ import type { AppTab } from '../types/biscato';
 
 interface NavbarProps {
   activeTab: AppTab;
+  userName: string | null;
   onSelectTab: (tab: AppTab) => void;
   onOpenNewRequest: () => void;
+  onLogin: () => void;
+  onLogout: () => void;
 }
 
 const NAV_ITEMS: { id: AppTab; label: string; shortLabel: string; icon: typeof Compass }[] = [
@@ -15,12 +18,21 @@ const NAV_ITEMS: { id: AppTab; label: string; shortLabel: string; icon: typeof C
   { id: 'escrow', label: 'Custódia', shortLabel: 'Custódia', icon: ShieldCheck },
 ];
 
-export function Navbar({ activeTab, onSelectTab, onOpenNewRequest }: NavbarProps) {
+const SECONDARY_BUTTON_CLASS =
+  'px-3 py-2.5 min-h-[40px] rounded-xl border border-[#D4DDD9] hover:bg-[#F6F7F5] text-[#10201B] text-sm font-semibold whitespace-nowrap shrink-0 transition-colors duration-150 cursor-pointer';
+
+export function Navbar({
+  activeTab,
+  userName,
+  onSelectTab,
+  onOpenNewRequest,
+  onLogin,
+  onLogout,
+}: NavbarProps) {
   return (
     <>
       <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-[#E1E7E4]">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-8">
-          {/* Zone 1: Brand mark + wordmark (single line, no descriptor/badges) */}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4 md:gap-8">
           <button
             type="button"
             onClick={() => onSelectTab('home')}
@@ -37,7 +49,6 @@ export function Navbar({ activeTab, onSelectTab, onOpenNewRequest }: NavbarProps
             </span>
           </button>
 
-          {/* Zone 2: 5 concise single-line navigation links */}
           <nav className="hidden md:flex items-center gap-7 text-sm font-medium text-[#52635D]" aria-label="Navegação principal">
             {NAV_ITEMS.map((item) => {
               const isActive = activeTab === item.id;
@@ -64,21 +75,33 @@ export function Navbar({ activeTab, onSelectTab, onOpenNewRequest }: NavbarProps
             })}
           </nav>
 
-          {/* Zone 3: 1 primary CTA action */}
-          <div className="flex items-center shrink-0">
+          <div className="flex items-center gap-2 shrink-0">
+            {userName ? (
+              <>
+                <span className="hidden lg:inline text-xs text-[#52635D] max-w-[140px] truncate">
+                  {userName}
+                </span>
+                <button type="button" onClick={onLogout} className={SECONDARY_BUTTON_CLASS}>
+                  Sair
+                </button>
+              </>
+            ) : (
+              <button type="button" onClick={onLogin} className={SECONDARY_BUTTON_CLASS}>
+                Entrar
+              </button>
+            )}
             <button
               type="button"
               onClick={onOpenNewRequest}
               className="inline-flex items-center gap-2 px-4 py-2.5 min-h-[40px] rounded-xl bg-[#066E53] hover:bg-[#055741] text-white text-sm font-semibold whitespace-nowrap shrink-0 transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#066E53] cursor-pointer"
             >
               <Plus className="w-4 h-4 shrink-0" aria-hidden="true" />
-              <span>Pedir Orçamento</span>
+              <span className="hidden sm:inline">Pedir Orçamento</span>
             </button>
           </div>
         </div>
       </header>
 
-      {/* Mobile Bottom Tab Bar (Thumb-zone navigation, compact height <= 15% mobile viewport) */}
       <nav
         className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-[#E1E7E4] h-14 px-1 grid grid-cols-5 items-center"
         aria-label="Navegação móvel"

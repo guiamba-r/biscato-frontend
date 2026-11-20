@@ -1,0 +1,33 @@
+import { useEffect, useState } from 'react';
+import { getErrorMessage } from '../api/client';
+import { providersApi } from '../api/endpoints';
+import { mapProviderSummary } from '../api/mappers';
+import type { ProviderProfile } from '../types/biscato';
+
+type LoadStatus = 'loading' | 'ready' | 'error';
+
+const PROVIDERS_PAGE_SIZE = 100;
+
+export function useProviders() {
+  const [providers, setProviders] = useState<ProviderProfile[]>([]);
+  const [status, setStatus] = useState<LoadStatus>('loading');
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    providersApi
+      .list({ pageSize: PROVIDERS_PAGE_SIZE }, controller.signal)
+      .then((page) => {
+        setProviders(page.items.map(mapProviderSummary));
+        setStatus('ready');
+      })
+      .catch((caught) => {
+        if (controller.signal.aborted) return;
+        setError(getErrorMessage(caught));
+        setStatus('error');
+      });
+    return () => controller.abort();
+  }, []);
+
+  return { providers, setProviders, status, error };
+}

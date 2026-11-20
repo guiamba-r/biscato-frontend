@@ -3,7 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { AuthView } from './components/AuthView';
 import { BusinessModelView } from './components/BusinessModelView';
 import { CompareProposalsView } from './components/CompareProposalsView';
 import { EscrowView } from './components/EscrowView';
@@ -19,6 +20,8 @@ import {
   INITIAL_PROVIDERS,
   INITIAL_REQUESTS,
 } from './data/biscatoData';
+import { useProviders } from './hooks/useProviders';
+import { useSession } from './session/SessionContext';
 import type {
   AppTab,
   ClientPlanState,
@@ -33,29 +36,55 @@ import type {
 } from './types/biscato';
 
 export default function App() {
+  const { user, logout } = useSession();
+  const {
+    providers,
+    setProviders,
+    status: providersStatus,
+    error: providersError,
+  } = useProviders();
+
   const [activeTab, setActiveTab] = useState<AppTab>('home');
   const [userRole, setUserRole] = useState<UserRole>('client');
   const [clientPlan, setClientPlan] = useState<ClientPlanState>('free_trial_30d');
   const [providerSubState, setProviderSubState] = useState<ProviderSubscriptionState>('active');
 
-  const [providers, setProviders] = useState<ProviderProfile[]>(INITIAL_PROVIDERS);
   const [requests, setRequests] = useState<ServiceRequest[]>(INITIAL_REQUESTS);
   const [proposals, setProposals] = useState<Proposal[]>(INITIAL_PROPOSALS);
   const [selectedRequestId, setSelectedRequestId] = useState<string>(INITIAL_REQUESTS[0].id);
   const [escrow, setEscrow] = useState<EscrowTransaction>(INITIAL_ESCROW);
 
-  // Modals & notifications
   const [profileModalProvider, setProfileModalProvider] = useState<ProviderProfile | null>(null);
   const [isNewRequestOpen, setIsNewRequestOpen] = useState(false);
   const [newRequestCategory, setNewRequestCategory] = useState<Exclude<ServiceCategoryId, 'all'> | undefined>(undefined);
   const [targetProvider, setTargetProvider] = useState<ProviderProfile | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
+  const providersWithMockData = useMemo(
+    () => [...providers, ...INITIAL_PROVIDERS],
+    [providers],
+  );
+
+  useEffect(() => {
+    if (user) setUserRole(user.role === 'provider' ? 'provider' : 'client');
+  }, [user]);
+
   const notify = (msg: string) => {
     setToastMessage(msg);
     window.setTimeout(() => {
       setToastMessage((curr) => (curr === msg ? null : curr));
     }, 4000);
+  };
+
+  const handleAuthenticated = () => {
+    setActiveTab('explore');
+    notify('Sessão iniciada com sucesso.');
+  };
+
+  const handleLogout = () => {
+    logout();
+    setActiveTab('home');
+    notify('Sessão terminada.');
   };
 
   const handleOpenNewRequest = (
@@ -82,10 +111,9 @@ export default function App() {
 
     setRequests((prev) => [newReq, ...prev]);
 
-    // Auto-match 2 verified providers to generate instant comparable proposals
     const matchingProviders = [
-      ...providers.filter((p) => p.category === payload.category),
-      ...providers.filter((p) => p.category !== payload.category),
+      ...providersWithMockData.filter((p) => p.category === payload.category),
+      ...providersWithMockData.filter((p) => p.category !== payload.category),
     ].slice(0, 2);
 
     const midBudget = Math.round((payload.budgetMinMT + payload.budgetMaxMT) / 2);
@@ -175,7 +203,6 @@ export default function App() {
 
   const handleFundEscrow = () => {
     const nowTime = new Date().toLocaleTimeString('pt-MZ', { hour: '2-digit', minute: '2-digit' });
-    const providerObj = providers.find((p) => p.id === escrow.providerId) ?? providers[0];
 
     setEscrow((prev) => ({
       ...prev,
@@ -193,7 +220,7 @@ export default function App() {
         {
           id: `msg-prov-${Date.now() + 1}`,
           sender: 'provider',
-          senderName: providerObj.name,
+          senderName: escrowProvider.name,
           text: 'Recebi a confirmação do valor em custódia! Estou a caminho conforme o prazo combinado.',
           timestamp: nowTime,
         },
@@ -215,7 +242,7 @@ export default function App() {
         {
           id: `msg-${Date.now()}`,
           sender: userRole === 'client' ? 'client' : 'provider',
-          senderName: userRole === 'client' ? 'Você (Cliente)' : escrowProvider.name,
+          senderName: userRole === 'client' ? (user?.fullName ?? 'Você (Cliente)') : escrowProvider.name,
           text,
           timestamp: nowTime,
         },
@@ -251,7 +278,7 @@ export default function App() {
               ...p,
               completedJobs: p.completedJobs + 1,
               reviewsCount: p.reviewsCount + 1,
-              creditsBalance: p.creditsBalance + escrow.creditsEarnedOnRelease,
+              creditsBalance: (p.creditsBalance ?? 0) + escrow.creditsEarnedOnRelease,
               reviews: [
                 {
                   id: `rev-${Date.now()}`,
@@ -315,24 +342,29 @@ export default function App() {
     setProviders((prev) =>
       prev.map((p) =>
         p.id === escrow.providerId
-          ? { ...p, creditsBalance: Math.max(0, p.creditsBalance - cost) }
+          ? { ...p, creditsBalance: Math.max(0, (p.creditsBalance ?? 0) - cost) }
           : p
       )
     );
     notify(`Créditos convertidos em ${itemLabel}!`);
   };
 
-  const escrowProvider = providers.find((p) => p.id === escrow.providerId) ?? providers[0];
+  const escrowProvider =
+    providersWithMockData.find((p) => p.id === escrow.providerId) ?? INITIAL_PROVIDERS[0];
+
+  const showProvidersNotice = activeTab === 'home' || activeTab === 'explore';
 
   return (
     <div className="min-h-screen flex flex-col bg-[#F6F7F5] text-[#10201B]">
       <Navbar
         activeTab={activeTab}
+        userName={user?.fullName ?? null}
         onSelectTab={(tab) => setActiveTab(tab)}
         onOpenNewRequest={() => handleOpenNewRequest()}
+        onLogin={() => setActiveTab('auth')}
+        onLogout={handleLogout}
       />
 
-      {/* Notification Banner */}
       {toastMessage && (
         <div className="fixed top-20 right-4 z-50 max-w-sm bg-[#10201B] text-white text-xs font-medium px-4 py-3 rounded-xl shadow-lg">
           {toastMessage}
@@ -340,6 +372,17 @@ export default function App() {
       )}
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-24 md:pb-12">
+        {showProvidersNotice && providersStatus === 'loading' && (
+          <p className="mb-4 text-xs font-medium text-[#52635D]">A carregar prestadores...</p>
+        )}
+        {showProvidersNotice && providersStatus === 'error' && (
+          <p role="alert" className="mb-4 text-xs font-medium text-red-700 bg-red-50 rounded-lg px-3 py-2">
+            {providersError}
+          </p>
+        )}
+
+        {activeTab === 'auth' && <AuthView onAuthenticated={handleAuthenticated} />}
+
         {activeTab === 'home' && (
           <LandingView
             providers={providers}
@@ -379,7 +422,7 @@ export default function App() {
           <OpportunitiesView
             requests={requests}
             proposals={proposals}
-            providers={providers}
+            providers={providersWithMockData}
             onSubmitProposal={handleSubmitProposal}
             onViewProposalsForRequest={(reqId) => {
               setSelectedRequestId(reqId);
@@ -394,7 +437,7 @@ export default function App() {
             selectedRequestId={selectedRequestId}
             onSelectRequestId={(id) => setSelectedRequestId(id)}
             proposals={proposals}
-            providers={providers}
+            providers={providersWithMockData}
             onViewProvider={(prov) => setProfileModalProvider(prov)}
             onAcceptProposal={handleAcceptProposal}
             onOpenNewRequest={() => handleOpenNewRequest()}
@@ -421,13 +464,12 @@ export default function App() {
             onChangeClientPlan={setClientPlan}
             providerSubState={providerSubState}
             onChangeProviderSubState={handleChangeProviderSubState}
-            providerCredits={escrowProvider.creditsBalance}
+            providerCredits={escrowProvider.creditsBalance ?? 0}
             onRedeemCredits={handleRedeemCredits}
           />
         )}
       </main>
 
-      {/* Quiet Footer */}
       <footer className="border-t border-[#E1E7E4] bg-white py-6 mb-14 md:mb-0">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-[#52635D]">
           <div className="flex items-center gap-2">
@@ -459,14 +501,12 @@ export default function App() {
         </div>
       </footer>
 
-      {/* Provider Profile Modal (Screen 03) */}
       <ProviderProfileModal
         provider={profileModalProvider}
         onClose={() => setProfileModalProvider(null)}
         onRequestQuote={(prov) => handleOpenNewRequest(prov.category, prov)}
       />
 
-      {/* New Service Request Modal */}
       <NewRequestModal
         isOpen={isNewRequestOpen}
         initialCategory={newRequestCategory}

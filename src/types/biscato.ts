@@ -1,4 +1,4 @@
-export type AppTab = 'home' | 'explore' | 'opportunities' | 'proposals' | 'escrow' | 'business';
+export type AppTab = 'home' | 'explore' | 'opportunities' | 'proposals' | 'escrow' | 'business' | 'auth';
 
 export type UserRole = 'client' | 'provider';
 
@@ -79,7 +79,7 @@ export interface ProviderProfile {
   biscatoWarranty: boolean;
   subscriptionState: ProviderSubscriptionState;
   toleranceDaysRemaining?: number;
-  creditsBalance: number;
+  creditsBalance?: number;
   hourlyOrBaseMT: number;
   bio: string;
   portfolio: PortfolioWork[];
@@ -92,7 +92,7 @@ export interface ServiceRequest {
   category: Exclude<ServiceCategoryId, 'all'>;
   province: ProvinceName;
   neighborhood: string;
-  distanceKm: number;
+  distanceKm: number | null;
   urgency: 'Urgente' | 'Esta semana' | 'Flexível';
   clientVerified: boolean;
   publishedLabel: string;

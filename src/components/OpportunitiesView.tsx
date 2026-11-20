@@ -36,7 +36,7 @@ export function OpportunitiesView({
   const filteredRequests = requests.filter((req) => {
     const matchesCat = selectedCategory === 'all' || req.category === selectedCategory;
     const matchesProv = selectedProvince === 'Todas as Províncias' || req.province === selectedProvince;
-    const matchesRadius = req.distanceKm <= maxRadiusKm;
+    const matchesRadius = req.distanceKm === null || req.distanceKm <= maxRadiusKm;
     const q = searchTerm.trim().toLowerCase();
     const matchesText =
       !q ||
@@ -198,7 +198,7 @@ export function OpportunitiesView({
                       <span className="text-[#52635D] font-normal"> · {categoryLabel}</span>
                     </span>
                     <span className="font-mono text-[#52635D] tabular-nums">
-                      {req.distanceKm.toFixed(1).replace('.', ',')} km
+                      {req.distanceKm === null ? 'Distância por definir' : `${req.distanceKm.toFixed(1).replace('.', ',')} km`}
                     </span>
                   </div>
 
