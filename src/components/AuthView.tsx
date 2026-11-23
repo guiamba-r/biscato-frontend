@@ -2,8 +2,10 @@ import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { getErrorMessage } from '../api/client';
 import { catalogApi } from '../api/endpoints';
-import type { ApiCategory, ApiProvince, RegisterBody } from '../api/types';
+import type { ApiAuthUser, ApiCategory, ApiProvince, RegisterBody } from '../api/types';
 import { useSession } from '../session/SessionContext';
+import { MOZAMBIQUE_PROVINCES, SERVICE_CATEGORIES } from '../data/biscatoData';
+import { ArrowLeft, ArrowRight, BriefcaseBusiness, UserRound } from 'lucide-react';
 
 type AuthMode = 'login' | 'register';
 type RegisterRole = 'client' | 'provider';
@@ -11,7 +13,8 @@ type RegisterRole = 'client' | 'provider';
 interface AuthViewProps {
   initialMode?: AuthMode;
   initialRole?: RegisterRole;
-  onAuthenticated: () => void;
+  adminOnly?: boolean;
+  onAuthenticated: (user: ApiAuthUser) => void;
 }
 
 interface FormState {
@@ -32,6 +35,19 @@ interface Catalog {
   provinces: ApiProvince[];
   categories: ApiCategory[];
 }
+
+const LOCAL_CATALOG: Catalog = {
+  provinces: MOZAMBIQUE_PROVINCES
+    .filter((province) => province !== 'Todas as Províncias')
+    .map((name) => ({ id: name, name })),
+  categories: SERVICE_CATEGORIES.map((category) => ({
+    id: category.id,
+    label: category.label,
+    shortLabel: category.shortLabel,
+    averageRangeMinMT: 0,
+    averageRangeMaxMT: 0,
+  })),
+};
 
 const EMPTY_FORM: FormState = {
   fullName: '',
@@ -55,12 +71,25 @@ const INPUT_CLASS =
 function buildRegisterBody(form: FormState, role: RegisterRole): RegisterBody | string {
   if (!PASSWORD_PATTERN.test(form.password)) return PASSWORD_MESSAGE;
 
-  const phone = form.phone.trim();
+  const rawPhone = form.phone.replace(/[^0-9+]/g, '').trim();
+  const phone =
+    rawPhone.startsWith('+258')
+      ? rawPhone
+      : rawPhone.startsWith('258')
+      ? `+${rawPhone}`
+      : rawPhone
+      ? `+258${rawPhone.replace(/^0/, '')}`
+      : '';
+
+  if (!/^\+2588[2-7][0-9]{7}$/.test(phone)) {
+    return 'Introduza um número moçambicano válido, por exemplo +258 84 123 4567.';
+  }
+
   const common = {
     fullName: form.fullName.trim(),
     email: form.email.trim(),
     password: form.password,
-    ...(phone ? { phone } : {}),
+    phone,
   };
 
   if (role === 'client') return { ...common, role: 'client' };
@@ -140,19 +169,24 @@ function SelectField({ label, value, options, onChange }: SelectFieldProps) {
   );
 }
 
-export function AuthView({ initialMode = 'login', initialRole = 'client', onAuthenticated }: AuthViewProps) {
-  const { login, register } = useSession();
+export function AuthView({ initialMode = 'login', initialRole = 'client', adminOnly = false, onAuthenticated }: AuthViewProps) {
+  const { login, register, startDemoSession } = useSession();
   const [mode, setMode] = useState<AuthMode>(initialMode);
   const [role, setRole] = useState<RegisterRole>(initialRole);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [catalog, setCatalog] = useState<Catalog | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [registerStep, setRegisterStep] = useState<1 | 2>(1);
 
   const isProviderRegistration = mode === 'register' && role === 'provider';
 
   useEffect(() => {
     if (!isProviderRegistration || catalog) return;
+    if (import.meta.env.DEV) {
+      setCatalog(LOCAL_CATALOG);
+      return;
+    }
     const controller = new AbortController();
     Promise.all([catalogApi.provinces(controller.signal), catalogApi.categories(controller.signal)])
       .then(([provinces, categories]) => setCatalog({ provinces, categories }))
@@ -168,6 +202,7 @@ export function AuthView({ initialMode = 'login', initialRole = 'client', onAuth
 
   function switchMode(next: AuthMode) {
     setMode(next);
+    setRegisterStep(1);
     setError(null);
   }
 
@@ -176,6 +211,12 @@ export function AuthView({ initialMode = 'login', initialRole = 'client', onAuth
     setError(null);
 
     if (mode === 'register') {
+      if (registerStep === 1) {
+        setRegisterStep(2);
+        setError(null);
+        return;
+      }
+
       const body = buildRegisterBody(form, role);
       if (typeof body === 'string') {
         setError(body);
@@ -183,8 +224,8 @@ export function AuthView({ initialMode = 'login', initialRole = 'client', onAuth
       }
       setSubmitting(true);
       try {
-        await register(body);
-        onAuthenticated();
+        const user = await register(body);
+        onAuthenticated(user);
       } catch (caught) {
         setError(getErrorMessage(caught));
       } finally {
@@ -193,15 +234,27 @@ export function AuthView({ initialMode = 'login', initialRole = 'client', onAuth
       return;
     }
 
+    if (adminOnly && import.meta.env.DEV) {
+      const adminCredentialsMatch = form.email.trim().toLowerCase() === 'admin@biscato.local' && form.password === 'BiscatoAdmin2026!';
+      if (adminCredentialsMatch) {
+        onAuthenticated(startDemoSession('admin'));
+        return;
+      }
+    }
+
     setSubmitting(true);
     try {
-      await login({ email: form.email.trim(), password: form.password });
-      onAuthenticated();
+      const user = await login({ email: form.email.trim(), password: form.password });
+      onAuthenticated(user);
     } catch (caught) {
       setError(getErrorMessage(caught));
     } finally {
       setSubmitting(false);
     }
+  }
+
+  function handleSocialLogin(provider: 'Google' | 'Facebook' | 'Apple') {
+    setError(`O início de sessão com ${provider} será ativado assim que a integração estiver disponível.`);
   }
 
   const tabClass = (active: boolean) =>
@@ -210,89 +263,165 @@ export function AuthView({ initialMode = 'login', initialRole = 'client', onAuth
     }`;
 
   return (
-    <section className="max-w-md mx-auto bg-white border border-[#E1E7E4] rounded-2xl p-6 shadow-sm">
-      <div className="flex gap-2 mb-5">
+    <section className="max-w-md mx-auto bg-white border border-[#DCE3DF] rounded-[10px] p-6 shadow-none">
+      {adminOnly ? (
+        <div className="mb-5 rounded-xl border border-[#C9E3D8] bg-[#E7F3EE] p-4">
+          <p className="font-display text-lg font-bold text-[#054A38]">Acesso de operação</p>
+          <p className="mt-1 text-xs leading-relaxed text-[#245B48]">Entre com uma conta de operador autorizada. O registo público não cria acesso administrativo.</p>
+        </div>
+      ) : <div className="flex gap-2 mb-5" aria-label="Escolher entre entrar ou criar conta">
         <button type="button" onClick={() => switchMode('login')} className={tabClass(mode === 'login')}>
           Entrar
         </button>
         <button type="button" onClick={() => switchMode('register')} className={tabClass(mode === 'register')}>
           Criar conta
         </button>
-      </div>
+      </div>}
 
       {mode === 'register' && (
-        <div className="flex gap-2 mb-4">
-          <button type="button" onClick={() => setRole('client')} className={tabClass(role === 'client')}>
-            Sou Cliente
-          </button>
-          <button type="button" onClick={() => setRole('provider')} className={tabClass(role === 'provider')}>
-            Sou Prestador
-          </button>
+        <div className="mb-5">
+          <div className="flex items-center justify-between mb-2" aria-label={`Etapa ${registerStep} de 2`}>
+            <p className="text-xs font-semibold text-[#52635D]">Etapa {registerStep} de 2</p>
+            <p className="text-xs text-[#718079]">{registerStep === 1 ? 'Conta' : 'Dados finais'}</p>
+          </div>
+          <div className="h-1.5 rounded-full bg-[#EDF1EF] overflow-hidden">
+            <div className="h-full rounded-full bg-[#066E53] transition-all duration-300" style={{ width: registerStep === 1 ? '50%' : '100%' }} />
+          </div>
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-3">
-        {mode === 'register' && (
-          <Field label="Nome completo" value={form.fullName} onChange={updateField('fullName')} autoComplete="name" />
-        )}
-        <Field label="Email" type="email" value={form.email} onChange={updateField('email')} autoComplete="email" />
-        <Field
-          label="Palavra-passe"
-          type="password"
-          value={form.password}
-          onChange={updateField('password')}
-          autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-        />
-        {mode === 'register' && (
-          <Field
-            label="Telemóvel (opcional)"
-            type="tel"
-            value={form.phone}
-            onChange={updateField('phone')}
-            autoComplete="tel"
-            required={false}
-          />
+      {import.meta.env.DEV && (
+        <aside className="mb-5 rounded-xl border border-[#F4C47D] bg-[#FFF8EA] p-4" aria-label="Sessões de demonstração">
+          <p className="text-sm font-semibold text-[#6B4811]">{adminOnly ? 'Acesso admin fictício para desenvolvimento' : 'Testar sem backend ou criar conta'}</p>
+          <p className="mt-1 text-xs leading-relaxed text-[#6B4811]">
+            {adminOnly ? 'Disponível apenas no modo de desenvolvimento. Não é uma conta real e não deve ser usada em produção.' : 'O login e o registo reais precisam da API activa. Para testar as telas agora, use um perfil demo; os dados ficam só enquanto esta página estiver aberta.'}
+          </p>
+          {adminOnly ? (
+            <button type="button" onClick={() => onAuthenticated(startDemoSession('admin'))} className="mt-3 min-h-11 w-full rounded-xl border border-[#066E53] bg-white px-3 py-2 text-sm font-semibold text-[#055741] hover:bg-[#EAF5F1] cursor-pointer">Entrar como Admin Demo</button>
+          ) : <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => onAuthenticated(startDemoSession('client'))}
+              className="min-h-11 rounded-xl border border-[#066E53] bg-[#EAF5F1] px-3 py-2 text-sm font-semibold text-[#055741] hover:bg-[#DDF0E8] cursor-pointer"
+            >
+              Entrar como Cliente Demo
+            </button>
+            <button
+              type="button"
+              onClick={() => onAuthenticated(startDemoSession('provider'))}
+              className="min-h-11 rounded-xl border border-[#066E53] bg-white px-3 py-2 text-sm font-semibold text-[#055741] hover:bg-[#F6F8F6] cursor-pointer"
+            >
+              Entrar como Prestador Demo
+            </button>
+          </div>}
+        </aside>
+      )}
+
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {mode === 'register' && registerStep === 1 && (
+          <>
+            <div>
+              <p className="font-display text-lg font-bold text-[#10201B]">Como pretende usar o Biscato?</p>
+              <p className="mt-1 text-sm text-[#52635D]">Escolha o perfil principal da sua conta.</p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setRole('client')}
+                aria-pressed={role === 'client'}
+                className={`min-h-[104px] rounded-xl border p-3 text-left transition-colors cursor-pointer ${role === 'client' ? 'border-[#066E53] bg-[#EAF5F1] ring-1 ring-[#066E53]' : 'border-[#D4DDD9] hover:border-[#9FB1A9]'}`}
+              >
+                <UserRound className="w-5 h-5 text-[#066E53] mb-2" aria-hidden="true" />
+                <span className="block text-sm font-semibold text-[#10201B]">Sou Cliente</span>
+                <span className="block mt-1 text-xs text-[#52635D]">Quero pedir serviços</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setRole('provider')}
+                aria-pressed={role === 'provider'}
+                className={`min-h-[104px] rounded-xl border p-3 text-left transition-colors cursor-pointer ${role === 'provider' ? 'border-[#066E53] bg-[#EAF5F1] ring-1 ring-[#066E53]' : 'border-[#D4DDD9] hover:border-[#9FB1A9]'}`}
+              >
+                <BriefcaseBusiness className="w-5 h-5 text-[#066E53] mb-2" aria-hidden="true" />
+                <span className="block text-sm font-semibold text-[#10201B]">Sou Prestador</span>
+                <span className="block mt-1 text-xs text-[#52635D]">Quero oferecer serviços</span>
+              </button>
+            </div>
+
+            <Field label="Nome completo" value={form.fullName} onChange={updateField('fullName')} autoComplete="name" />
+            <Field
+              label="Telemóvel moçambicano (+258)"
+              type="tel"
+              value={form.phone}
+              onChange={updateField('phone')}
+              autoComplete="tel"
+              required
+            />
+          </>
         )}
 
-        {isProviderRegistration && (
+        {mode === 'login' && !adminOnly && (
           <>
-            <Field label="Especialidade" value={form.specialty} onChange={updateField('specialty')} />
-            <SelectField
-              label="Categoria"
-              value={form.category}
-              onChange={updateField('category')}
-              options={(catalog?.categories ?? []).map((category) => ({
-                value: category.id,
-                label: category.label,
-              }))}
-            />
-            <SelectField
-              label="Província"
-              value={form.province}
-              onChange={updateField('province')}
-              options={(catalog?.provinces ?? []).map((province) => ({
-                value: province.name,
-                label: province.name,
-              }))}
-            />
-            <Field label="Bairro" value={form.neighborhood} onChange={updateField('neighborhood')} />
+            <div>
+              <p className="font-display text-lg font-bold text-[#10201B]">Bem-vindo de volta</p>
+              <p className="mt-1 text-sm text-[#52635D]">Entre para continuar.</p>
+            </div>
+            <Field label="Email" type="email" value={form.email} onChange={updateField('email')} autoComplete="email" />
             <Field
-              label="Anos de experiência"
-              type="number"
-              value={form.yearsExperience}
-              onChange={updateField('yearsExperience')}
+              label="Palavra-passe"
+              type="password"
+              value={form.password}
+              onChange={updateField('password')}
+              autoComplete="current-password"
             />
-            <Field label="Valor base (MT)" type="number" value={form.baseRateMT} onChange={updateField('baseRateMT')} />
-            <label className="block">
-              <span className="block text-xs font-semibold text-[#10201B] mb-1">Apresentação</span>
-              <textarea
-                value={form.bio}
-                required
-                rows={3}
-                onChange={(event) => updateField('bio')(event.target.value)}
-                className={INPUT_CLASS}
-              />
-            </label>
+          </>
+        )}
+
+        {mode === 'register' && registerStep === 2 && (
+          <>
+            <div>
+              <p className="font-display text-lg font-bold text-[#10201B]">Segurança e {role === 'provider' ? 'perfil profissional' : 'acesso'}</p>
+              <p className="mt-1 text-sm text-[#52635D]">Preencha apenas os dados necessários para começar.</p>
+            </div>
+            <Field label="Email" type="email" value={form.email} onChange={updateField('email')} autoComplete="email" />
+            <Field
+              label="Palavra-passe"
+              type="password"
+              value={form.password}
+              onChange={updateField('password')}
+              autoComplete="new-password"
+            />
+
+            {isProviderRegistration && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <Field label="Especialidade" value={form.specialty} onChange={updateField('specialty')} />
+                <SelectField
+                  label="Categoria"
+                  value={form.category}
+                  onChange={updateField('category')}
+                  options={(catalog?.categories ?? []).map((category) => ({ value: category.id, label: category.label }))}
+                />
+                <SelectField
+                  label="Província"
+                  value={form.province}
+                  onChange={updateField('province')}
+                  options={(catalog?.provinces ?? []).map((province) => ({ value: province.name, label: province.name }))}
+                />
+                <Field label="Bairro" value={form.neighborhood} onChange={updateField('neighborhood')} />
+                <Field label="Anos de experiência" type="number" value={form.yearsExperience} onChange={updateField('yearsExperience')} />
+                <Field label="Valor base (MT)" type="number" value={form.baseRateMT} onChange={updateField('baseRateMT')} />
+                <label className="block sm:col-span-2">
+                  <span className="block text-xs font-semibold text-[#10201B] mb-1">Apresentação</span>
+                  <textarea
+                    value={form.bio}
+                    required
+                    rows={3}
+                    onChange={(event) => updateField('bio')(event.target.value)}
+                    className={INPUT_CLASS}
+                  />
+                </label>
+              </div>
+            )}
           </>
         )}
 
@@ -302,13 +431,118 @@ export function AuthView({ initialMode = 'login', initialRole = 'client', onAuth
           </p>
         )}
 
-        <button
-          type="submit"
-          disabled={submitting}
-          className="w-full rounded-xl bg-[#066E53] text-white text-sm font-semibold py-2.5 disabled:opacity-60 cursor-pointer"
-        >
-          {submitting ? 'A processar...' : mode === 'login' ? 'Entrar' : 'Criar conta'}
-        </button>
+        {mode === 'register' && registerStep === 2 ? (
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setRegisterStep(1)}
+              className="h-11 w-11 shrink-0 rounded-xl border border-[#D4DDD9] text-[#52635D] flex items-center justify-center cursor-pointer"
+              aria-label="Voltar à etapa anterior"
+            >
+              <ArrowLeft className="w-4 h-4" aria-hidden="true" />
+            </button>
+            <button
+              type="submit"
+              disabled={submitting}
+              className="h-11 flex-1 rounded-xl bg-[#066E53] hover:bg-[#055741] text-white text-sm font-semibold disabled:opacity-60 cursor-pointer"
+            >
+              {submitting ? 'A processar...' : 'Criar conta'}
+            </button>
+          </div>
+        ) : (
+          <button
+            type="submit"
+            disabled={submitting}
+            className="h-11 w-full rounded-xl bg-[#066E53] hover:bg-[#055741] text-white text-sm font-semibold disabled:opacity-60 cursor-pointer"
+          >
+            {mode === 'login'
+              ? (submitting ? 'A entrar...' : 'Entrar')
+              : <span className="inline-flex items-center justify-center gap-2">Continuar <ArrowRight className="w-4 h-4" aria-hidden="true" /></span>}
+          </button>
+        )}
+
+        {mode === 'login' && (
+          <div className="mt-4">
+            <div className="grid grid-cols-3 gap-2 mb-4">
+              {[
+                { label: 'Google', mark: 'G' },
+                { label: 'Facebook', mark: 'f' },
+                { label: 'Apple', mark: '●' },
+              ].map((provider) => (
+                <button
+                  key={provider.label}
+                  type="button"
+                  onClick={() => handleSocialLogin(provider.label as 'Google' | 'Facebook' | 'Apple')}
+                  className="h-11 rounded-lg border border-[#CAD3CE] bg-white text-xs font-bold text-[#10201B] hover:border-[#066E53] hover:bg-[#F6F8F6] transition-colors cursor-pointer"
+                  aria-label={`Continuar com ${provider.label}`}
+                >
+                  <span className="mr-1.5 inline-flex h-5 w-5 items-center justify-center rounded-full border border-[#DCE3DF] text-sm" aria-hidden="true">{provider.mark}</span>
+                  {provider.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex items-center gap-3 mb-4">
+              <span className="h-px flex-1 bg-[#DCE3DF]" />
+              <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#718079]">ou</span>
+              <span className="h-px flex-1 bg-[#DCE3DF]" />
+            </div>
+            <button
+              type="button"
+              onClick={() => handleSocialLogin('Google')}
+              className="w-full h-11 rounded-xl border border-[#D4DDD9] text-[#52635D] flex items-center justify-center gap-2 transition-colors hover:border-[#9FB1A9]"
+              aria-label="Iniciar sessão com o Google"
+            >
+              <svg className="w-5 h-5" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+                <path
+                  fill="#4285F4"
+                  d="M23.49 12.27c-.73 0-1.44.06-2.14.17-1.67.23-3.24.73-4.67 1.44-1.3.67-2.48 1.54-3.5 2.57l-3.6-3.6C15.1 10.1 18.49 7.5 22.5 6.24c1.3-.27 2.63-.41 3.98-.41 2.67 0 5.24.67 7.5 1.98 2.4 1.5 4.24 3.6 5.5 6.1 1.3 2.57 2 5.4 2 8.5s-.7 5.93-2 8.5c-1.26 2.5-3.1 4.6-5.5 6.1-2.26 1.31-4.83 1.98-7.5 1.98-1.35 0-2.68-.14-3.98-.41-4.01-1.26-7.4-3.86-9.9-7.24l3.6-3.6c1.02 1.03 2.2 1.9 3.5 2.57 1.43.71 3 .21 4.67-.02 1.07-.15 2.14-.31 3.24-.49.73-.1 1.44-.21 2.14-.21 1.5 0 3.01.2 4.5.59 1.5.39 2.93 1 4.24 1.76 1.3.67 2.48 1.54 3.5 2.57l3.6-3.6c-1.02-1.03-2.2-1.9-3.5-2.57-1.43-.71-3-.21-4.67.02-1.07.15-2.14.31-3.24.49-.73.1-1.44.21-2.14.21z"
+                />
+                <path
+                  fill="#34A853"
+                  d="M23.49 12.27c-.73 0-1.44.06-2.14.17-1.67.23-3.24.73-4.67 1.44-1.3.67-2.48 1.54-3.5 2.57l-3.6-3.6C15.1 10.1 18.49 7.5 22.5 6.24c1.3-.27 2.63-.41 3.98-.41 2.67 0 5.24.67 7.5 1.98 2.4 1.5 4.24 3.6 5.5 6.1 1.3 2.57 2 5.4 2 8.5s-.7 5.93-2 8.5c-1.26 2.5-3.1 4.6-5.5 6.1-2.26 1.31-4.83 1.98-7.5 1.98-1.35 0-2.68-.14-3.98-.41-4.01-1.26-7.4-3.86-9.9-7.24l3.6-3.6c1.02 1.03 2.2 1.9 3.5 2.57 1.43.71 3 .21 4.67-.02 1.07-.15 2.14-.31 3.24-.49.73-.1 1.44-.21 2.14-.21 1.5 0 3.01.2 4.5.59 1.5.39 2.93 1 4.24 1.76 1.3.67 2.48 1.54 3.5 2.57l3.6-3.6c-1.02-1.03-2.2-1.9-3.5-2.57-1.43-.71-3-.21-4.67.02-1.07.15-2.14.31-3.24.49-.73.1-1.44.21-2.14.21z"
+                />
+                <path
+                  fill="#FBBC05"
+                  d="M23.49 12.27c-.73 0-1.44.06-2.14.17-1.67.23-3.24.73-4.67 1.44-1.3.67-2.48 1.54-3.5 2.57l-3.6-3.6C15.1 10.1 18.49 7.5 22.5 6.24c1.3-.27 2.63-.41 3.98-.41 2.67 0 5.24.67 7.5 1.98 2.4 1.5 4.24 3.6 5.5 6.1 1.3 2.57 2 5.4 2 8.5s-.7 5.93-2 8.5c-1.26 2.5-3.1 4.6-5.5 6.1-2.26 1.31-4.83 1.98-7.5 1.98-1.35 0-2.68-.14-3.98-.41-4.01-1.26-7.4-3.86-9.9-7.24l3.6-3.6c1.02 1.03 2.2 1.9 3.5 2.57 1.43.71 3 .21 4.67-.02 1.07-.15 2.14-.31 3.24-.49.73-.1 1.44-.21 2.14-.21 1.5 0 3.01.2 4.5.59 1.5.39 2.93 1 4.24 1.76 1.3.67 2.48 1.54 3.5 2.57l3.6-3.6c-1.02-1.03-2.2-1.9-3.5-2.57-1.43-.71-3-.21-4.67.02-1.07.15-2.14.31-3.24.49-.73.1-1.44.21-2.14.21z"
+                />
+                <path
+                  fill="#EA4335"
+                  d="M23.49 12.27c-.73 0-1.44.06-2.14.17-1.67.23-3.24.73-4.67 1.44-1.3.67-2.48 1.54-3.5 2.57l-3.6-3.6C15.1 10.1 18.49 7.5 22.5 6.24c1.3-.27 2.63-.41 3.98-.41 2.67 0 5.24.67 7.5 1.98 2.4 1.5 4.24 3.6 5.5 6.1 1.3 2.57 2 5.4 2 8.5s-.7 5.93-2 8.5c-1.26 2.5-3.1 4.6-5.5 6.1-2.26 1.31-4.83 1.98-7.5 1.98-1.35 0-2.68-.14-3.98-.41-4.01-1.26-7.4-3.86-9.9-7.24l3.6-3.6c1.02 1.03 2.2 1.9 3.5 2.57 1.43.71 3 .21 4.67-.02 1.07-.15 2.14-.31 3.24-.49.73-.1 1.44-.21 2.14-.21 1.5 0 3.01.2 4.5.59 1.5.39 2.93 1 4.24 1.76 1.3.67 2.48 1.54 3.5 2.57l3.6-3.6c-1.02-1.03-2.2-1.9-3.5-2.57-1.43-.71-3-.21-4.67.02-1.07.15-2.14.31-3.24.49-.73.1-1.44.21-2.14.21z"
+                />
+              </svg>
+              Iniciar sessão com o Google
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSocialLogin('Facebook')}
+              className="mt-2 w-full h-11 rounded-xl border border-[#D4DDD9] text-[#52635D] flex items-center justify-center gap-2 transition-colors hover:border-[#9FB1A9]"
+              aria-label="Iniciar sessão com o Facebook"
+            >
+              <svg className="w-5 h-5" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+                <path
+                  fill="#1877F2"
+                  d="M24 0C10.745 0 0 10.745 0 24c0 11.673 8.388 21.354 19.25 23.485v-16.6H13.5v-6.885h5.75V18.1c0-5.684 2.957-8.85 8.1-8.85 2.344 0 4.84.438 4.84.438v5.344h-2.725c-2.688 0-3.515 1.67-3.515 3.385v4.012h6.25l-.875 6.885h-5.375v16.6C39.612 45.354 48 35.673 48 24c0-13.255-10.745-24-24-24z"
+                />
+              </svg>
+              Iniciar sessão com o Facebook
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSocialLogin('Apple')}
+              className="mt-2 w-full h-11 rounded-xl border border-[#D4DDD9] text-[#52635D] flex items-center justify-center gap-2 transition-colors hover:border-[#9FB1A9]"
+              aria-label="Iniciar sessão com a Apple"
+            >
+              <svg className="w-5 h-5" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+                <path
+                  fill="#000"
+                  d="M24 0C10.745 0 0 10.745 0 24c0 11.673 8.388 21.354 19.25 23.485v-16.6H13.5v-6.885h5.75V18.1c0-5.684 2.957-8.85 8.1-8.85 2.344 0 4.84.438 4.84.438v5.344h-2.725c-2.688 0-3.515 1.67-3.515 3.385v4.012h6.25l-.875 6.885h-5.375v16.6C39.612 45.354 48 35.673 48 24c0-13.255-10.745-24-24-24z"
+                />
+              </svg>
+              Iniciar sessão com a Apple
+            </button>
+          </div>
+        )}
       </form>
     </section>
   );

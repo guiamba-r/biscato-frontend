@@ -56,6 +56,10 @@ export function mapProviderSummary(provider: ApiProviderSummary): ProviderProfil
     category: provider.category as CategoryId,
     province: provider.province as ProvinceName,
     neighborhood: provider.neighborhood,
+    coordinates: Number.isFinite(provider.latitude) && Number.isFinite(provider.longitude)
+      ? { latitude: provider.latitude as number, longitude: provider.longitude as number }
+      : null,
+    isAvailable: provider.isAvailable,
     rating: provider.rating,
     reviewsCount: provider.reviewsCount,
     completedJobs: provider.completedJobs,
@@ -100,6 +104,8 @@ function mapRequest(request: VisibleApiRequest): ServiceRequest {
     budgetMaxMT: request.budgetMaxMT,
     description: request.description,
     status: request.status,
+    targetProviderId: request.targetProviderId,
+    proposalsCount: request.proposalsCount,
   };
 }
 

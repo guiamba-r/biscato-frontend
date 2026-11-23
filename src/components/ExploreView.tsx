@@ -18,7 +18,6 @@ import {
 } from 'lucide-react';
 import { MOZAMBIQUE_PROVINCES, SERVICE_CATEGORIES } from '../data/biscatoData';
 import type {
-  ClientPlanState,
   ProviderProfile,
   ProvinceName,
   ServiceCategoryId,
@@ -30,13 +29,13 @@ import { TradeIllustration } from './TradeArtwork';
 interface ExploreViewProps {
   providers: ProviderProfile[];
   userRole: UserRole;
+  canSwitchRole: boolean;
   onChangeRole: (role: UserRole) => void;
-  clientPlan: ClientPlanState;
   onSelectProvider: (provider: ProviderProfile) => void;
   onRequestQuoteForProvider: (provider: ProviderProfile) => void;
   onOpenNewRequest: (initialCategory?: Exclude<ServiceCategoryId, 'all'>) => void;
   onNavigateOpportunities: () => void;
-  onNavigateEscrow: () => void;
+  onNavigateServices: () => void;
 }
 
 const CATEGORY_ICONS: Record<Exclude<ServiceCategoryId, 'all'>, typeof Droplets> = {
@@ -53,13 +52,13 @@ const CATEGORY_ICONS: Record<Exclude<ServiceCategoryId, 'all'>, typeof Droplets>
 export function ExploreView({
   providers,
   userRole,
+  canSwitchRole,
   onChangeRole,
-  clientPlan,
   onSelectProvider,
   onRequestQuoteForProvider,
   onOpenNewRequest,
   onNavigateOpportunities,
-  onNavigateEscrow,
+  onNavigateServices,
 }: ExploreViewProps) {
   const MAX_PRICE_BOUND = 10000;
   const [searchQuery, setSearchQuery] = useState('');
@@ -129,58 +128,44 @@ export function ExploreView({
 
   return (
     <div className="space-y-10">
-      {/* Workspace Toolbar: Role switch & Client trial status (placed in workspace below top bar) */}
-      <section className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#E1E7E4]">
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="inline-flex items-center p-1 bg-[#E9EEEC] rounded-xl" role="group" aria-label="Modo de utilização">
-            <button
-              type="button"
-              onClick={() => onChangeRole('client')}
-              className={`px-3.5 py-2 text-xs font-semibold rounded-lg whitespace-nowrap transition-colors cursor-pointer ${
-                userRole === 'client'
-                  ? 'bg-white text-[#066E53] shadow-xs'
-                  : 'text-[#52635D] hover:text-[#10201B]'
-              }`}
-            >
-              Modo Cliente
-            </button>
-            <button
-              type="button"
-              onClick={() => onChangeRole('provider')}
-              className={`px-3.5 py-2 text-xs font-semibold rounded-lg whitespace-nowrap transition-colors cursor-pointer ${
-                userRole === 'provider'
-                  ? 'bg-white text-[#066E53] shadow-xs'
-                  : 'text-[#52635D] hover:text-[#10201B]'
-              }`}
-            >
-              Modo Prestador
-            </button>
-          </div>
-
-          <span className="text-xs text-[#52635D]">
-            {userRole === 'client'
-              ? clientPlan === 'free_trial_30d'
-                ? 'Acesso gratuito de 30 dias ativo · Pagamento retido em custódia'
-                : 'Plano ativo · Cobertura até 50% de prejuízos'
-              : 'Subscrição mensal · 30 dias de tolerância com taxa de 10%'}
-          </span>
+      {/* Header: Editorial Directory Section */}
+      <section className="editorial-rule flex flex-col sm:flex-row sm:items-end justify-between gap-5 pt-6">
+        <div>
+          <p className="section-kicker mb-3">Diretório de profissionais</p>
+          <h1 className="font-display text-3xl sm:text-4xl font-bold tracking-tight text-[#162820]">
+            Explorar profissionais
+          </h1>
+          <p className="mt-2 text-sm sm:text-base text-[#52635D]">
+            Pesquise por serviço, localização e orçamento antes de pedir propostas.
+          </p>
         </div>
 
-        <div className="flex items-center gap-3 text-xs text-[#52635D]">
-          <span>Moçambique · 11 Províncias</span>
-          <span aria-hidden="true">·</span>
+        {canSwitchRole ? <div className="flex items-center gap-2" role="group" aria-label="Modo de utilização">
           <button
             type="button"
-            onClick={onNavigateEscrow}
-            className="text-[#066E53] font-semibold hover:underline whitespace-nowrap cursor-pointer"
+            onClick={() => onChangeRole('client')}
+            aria-pressed={userRole === 'client'}
+            className={`h-10 px-4 text-xs font-bold border cursor-pointer ${userRole === 'client' ? 'bg-[#162820] border-[#162820] text-white' : 'bg-transparent border-[#D5D9D3] text-[#52635D] hover:border-[#1F6652]'}`}
           >
-            Ver Custódia Ativa
+            Sou cliente
           </button>
-        </div>
+          <button
+            type="button"
+            onClick={() => onChangeRole('provider')}
+            aria-pressed={userRole === 'provider'}
+            className={`h-10 px-4 text-xs font-bold border cursor-pointer ${userRole === 'provider' ? 'bg-[#162820] border-[#162820] text-white' : 'bg-transparent border-[#D5D9D3] text-[#52635D] hover:border-[#1F6652]'}`}
+          >
+            Sou prestador
+          </button>
+        </div> : (
+          <span className="inline-flex min-h-10 items-center rounded-xl bg-[#EAF5F1] px-4 text-xs font-bold text-[#066E53]">
+            Conta {userRole === 'provider' ? 'de prestador' : 'de cliente'}
+          </span>
+        )}
       </section>
 
       {/* Search by Service, Neighborhood/Zone & Province Filter Bar */}
-      <section className="bg-white border border-[#E1E7E4] rounded-2xl p-3.5 sm:p-4 space-y-3">
+      <section className="border-y border-[#D5D9D3] py-4 space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
           <div className="md:col-span-4 relative">
             <Search className="w-4 h-4 text-[#52635D] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" aria-hidden="true" />
@@ -228,7 +213,7 @@ export function ExploreView({
               value={selectedProvince}
               onChange={(e) => setSelectedProvince(e.target.value as ProvinceName)}
               aria-label="Selecionar província"
-              className="w-full h-11 pl-10 pr-3 rounded-xl bg-[#F6F7F5] border border-transparent focus:border-[#066E53] focus:bg-white text-sm text-[#10201B] outline-none cursor-pointer"
+              className="w-full h-11 pl-10 pr-3 rounded-xl bg-[#F6F7F5] border border-transparent focus:border-[#066E53] focus:bg-white text-sm text-[#10201B] placeholder:text-[#6B7C76] outline-none cursor-pointer"
             >
               {MOZAMBIQUE_PROVINCES.map((prov) => (
                 <option key={prov} value={prov}>
@@ -395,7 +380,7 @@ export function ExploreView({
                   type="button"
                   onClick={() => setMinRating(opt.value)}
                   aria-pressed={active}
-                  className={`inline-flex items-center gap-1 px-3 py-1.5 min-h-[34px] rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 transition-colors cursor-pointer tabular-nums ${
+                  className={`inline-flex items-center gap-1 px-3 py-1.5 min-h-8.5 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 transition-colors cursor-pointer tabular-nums ${
                     active
                       ? 'bg-[#066E53] text-white'
                       : 'bg-[#F6F7F5] text-[#52635D] hover:text-[#10201B]'
@@ -417,56 +402,25 @@ export function ExploreView({
         </div>
       </section>
 
-      {/* Hero Banner inspired by Card_4ef9c085.png */}
-      <section className="relative rounded-3xl bg-[#066E53] text-white overflow-hidden">
-        <div className="grid grid-cols-1 lg:grid-cols-12 items-stretch">
-          <div className="lg:col-span-7 p-6 sm:p-10 lg:p-12 flex flex-col justify-center space-y-5">
-            <p className="text-xs sm:text-sm font-medium text-[#AEE6D4]">
-              Intermediação, comparação de orçamentos e custódia M-Pesa / e-Mola
-            </p>
-            <h1 className="font-display text-3xl sm:text-4xl lg:text-[42px] font-bold leading-[1.15] tracking-tight text-balance max-w-2xl">
-              Procura um profissional verificado perto de si?
-            </h1>
-            <p className="text-sm sm:text-base text-white/85 max-w-xl leading-relaxed">
-              Publique o serviço uma única vez, compare propostas reais de técnicos com identidade validada e pague em segurança: o valor fica retido até confirmar a conclusão.
-            </p>
-            <div className="flex flex-wrap items-center gap-3 pt-1">
-              <button
-                type="button"
-                onClick={() => onOpenNewRequest()}
-                className="inline-flex items-center gap-2 px-6 py-3 min-h-[44px] rounded-xl bg-[#F4811F] hover:bg-[#DD6E0F] text-white font-semibold text-sm whitespace-nowrap transition-colors cursor-pointer"
-              >
-                <span>Pedir Orçamento</span>
-                <ArrowRight className="w-4 h-4" aria-hidden="true" />
-              </button>
-              <button
-                type="button"
-                onClick={onNavigateOpportunities}
-                className="inline-flex items-center gap-2 px-5 py-3 min-h-[44px] rounded-xl bg-white/12 hover:bg-white/20 text-white font-medium text-sm whitespace-nowrap transition-colors cursor-pointer"
-              >
-                <span>Ver Oportunidades ({providers.length - 1} abertas)</span>
-              </button>
-            </div>
-          </div>
-
-          <div className="lg:col-span-5 bg-[#055A44] p-6 sm:p-8 flex flex-col justify-between items-center text-center">
-            <div className="w-full max-w-xs mx-auto my-auto py-2">
-              <div className="bg-white/10 rounded-2xl p-6 flex flex-col items-center">
-                <img
-                  src="/assets/aistudio/biscato_logo_4fc64c75.png"
-                  alt="Mascote Biscato"
-                  referrerPolicy="no-referrer"
-                  className="w-32 h-auto object-contain mb-4 drop-shadow-md"
-                />
-                <p className="font-display text-base font-bold text-white">
-                  Selo Biscato Verificado
-                </p>
-                <p className="text-xs text-[#BCEAD9] mt-1.5 leading-relaxed">
-                  BI confirmado · Cobertura até 50% de prejuízos elegíveis · Reembolso protegido em Escrow
-                </p>
-              </div>
-            </div>
-          </div>
+      {/* Compact Action Band */}
+      <section className="grid grid-cols-1 lg:grid-cols-[1fr_auto] items-center gap-5 border-y border-[#D5D9D3] py-5">
+        <div>
+          <p className="section-kicker mb-2">{userRole === 'provider' ? 'Mais clientes encontram os seus serviços' : 'Não encontrou o profissional certo?'}</p>
+          <p className="font-display text-lg sm:text-xl font-bold text-[#162820]">
+            {userRole === 'provider' ? 'Publique o que faz e receba pedidos na sua zona.' : 'Publique o serviço e receba propostas na sua zona.'}
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {userRole === 'provider' ? (
+            <>
+              <button type="button" onClick={onNavigateServices} className="h-11 px-5 bg-[#066E53] hover:bg-[#055741] text-white text-sm font-bold cursor-pointer">Publicar serviço</button>
+              <button type="button" onClick={onNavigateOpportunities} className="h-11 px-5 border border-[#D5D9D3] text-[#162820] text-sm font-bold hover:border-[#1F6652] cursor-pointer">Ver pedidos</button>
+            </>
+          ) : (
+            <button type="button" onClick={() => onOpenNewRequest()} className="h-11 px-5 bg-[#C96B35] hover:bg-[#AA5730] text-white text-sm font-bold cursor-pointer">
+              Publicar pedido
+            </button>
+          )}
         </div>
       </section>
 
@@ -492,7 +446,7 @@ export function ExploreView({
           )}
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-8 border-l border-t border-[#D5D9D3]">
           {SERVICE_CATEGORIES.map((cat) => {
             const Icon = CATEGORY_ICONS[cat.id];
             const isSelected = selectedCategory === cat.id;
@@ -501,15 +455,15 @@ export function ExploreView({
                 key={cat.id}
                 type="button"
                 onClick={() => setSelectedCategory(isSelected ? 'all' : cat.id)}
-                className={`group flex flex-col items-center justify-center text-center p-3.5 rounded-2xl border transition-all duration-150 min-h-[104px] cursor-pointer ${
+                className={`group flex items-center gap-3 text-left p-3.5 min-h-17 border-y border-r border-[#D5D9D3] transition-all duration-150 cursor-pointer first:border-l ${
                   isSelected
-                    ? 'bg-[#066E53] border-[#066E53] text-white'
-                    : 'bg-white border-[#E1E7E4] hover:border-[#066E53]/50 text-[#10201B]'
+                    ? 'bg-[#162820] border-[#162820] text-white'
+                    : 'bg-white hover:bg-[#F6F5F1] text-[#162820]'
                 }`}
               >
                 <div
-                  className={`w-11 h-11 rounded-full flex items-center justify-center mb-2.5 transition-colors ${
-                    isSelected ? 'bg-white/20 text-white' : `${cat.accentBg} ${cat.accentText}`
+                  className={`w-9 h-9 flex items-center justify-center shrink-0 ${
+                    isSelected ? 'text-white' : 'text-[#1F6652]'
                   }`}
                 >
                   <Icon className="w-5 h-5" aria-hidden="true" />
@@ -537,7 +491,7 @@ export function ExploreView({
         </div>
 
         {filteredProviders.length === 0 ? (
-          <div className="bg-white border border-[#E1E7E4] rounded-2xl p-10 text-center space-y-3">
+          <div className="border-y border-[#D5D9D3] py-10 text-center space-y-3">
             <p className="font-display text-base font-semibold text-[#10201B]">
               Nenhum profissional encontrado para este filtro
             </p>
@@ -570,7 +524,7 @@ export function ExploreView({
               return (
                 <article
                   key={provider.id}
-                  className="bg-white border border-[#E1E7E4] rounded-2xl p-5 flex flex-col justify-between gap-4 hover:border-[#066E53]/40 transition-colors"
+                  className="bg-white border border-[#DCE3DF] rounded-[10px] p-5 flex flex-col justify-between gap-4 hover:border-[#066E53] transition-colors"
                 >
                   <div className="space-y-3">
                     <div className="flex items-start justify-between gap-3">
@@ -643,41 +597,18 @@ export function ExploreView({
         )}
       </section>
 
-      {/* 6-Step Sequential Flow from Mapa de Desenvolvimento */}
-      <section className="bg-white border border-[#E1E7E4] rounded-2xl p-6 sm:p-8 space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <div>
-            <h2 className="font-display text-xl font-bold text-[#10201B]">
-              Como funciona o fluxo seguro Biscato
-            </h2>
-            <p className="text-sm text-[#52635D]">
-              6 etapas da escolha do serviço até à libertação do valor em custódia
-            </p>
+      {/* Trust Band (replacing the long duplicated flow section) */}
+      <section className="border-y border-[#D5D9D3] py-5 grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-[#D5D9D3]">
+        {[
+          ['Identidade verificada', 'Prestadores com validação registada'],
+          ['Proposta comparável', 'Preço e prazo apresentados de forma clara'],
+          ['Pagamento protegido', 'Valor retido até confirmar o trabalho'],
+        ].map(([title, copy]) => (
+          <div key={title} className="px-0 sm:px-5 py-4 first:sm:pl-0 last:sm:pr-0">
+            <p className="text-sm font-bold text-[#162820]">{title}</p>
+            <p className="mt-1 text-xs text-[#52635D]">{copy}</p>
           </div>
-          <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#066E53]">
-            <ShieldCheck className="w-4 h-4" aria-hidden="true" />
-            <span>Garantia contra fraudes e reembolso</span>
-          </span>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
-          {[
-            { n: '01', title: 'Escolher serviço', desc: 'Selecione a categoria e pesquise o que precisa.' },
-            { n: '02', title: 'Escolher prestador', desc: 'Compare perfis verificados, preços e avaliações.' },
-            { n: '03', title: 'Pedido e orçamento', desc: 'Descreva o trabalho, local e aprove a proposta.' },
-            { n: '04', title: 'Pagamento retido', desc: 'Pague via M-Pesa, e-Mola ou Mkesh em escrow.' },
-            { n: '05', title: 'Serviço executado', desc: 'Acompanhe a execução pelo chat na plataforma.' },
-            { n: '06', title: 'Confirmar e avaliar', desc: 'Liberte o valor, avalie e gere créditos ao técnico.' },
-          ].map((step) => (
-            <div key={step.n} className="pt-3 border-t border-[#E1E7E4] space-y-1.5">
-              <span className="font-mono text-xs font-semibold text-[#F4811F] tabular-nums">
-                {step.n}
-              </span>
-              <h3 className="font-display text-sm font-bold text-[#10201B]">{step.title}</h3>
-              <p className="text-xs text-[#52635D] leading-relaxed">{step.desc}</p>
-            </div>
-          ))}
-        </div>
+        ))}
       </section>
     </div>
   );

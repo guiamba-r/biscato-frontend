@@ -1,20 +1,26 @@
 import { useEffect, useState } from 'react';
-import { ShieldCheck, X } from 'lucide-react';
+import { MapPin, ShieldCheck, X } from 'lucide-react';
 import { MOZAMBIQUE_PROVINCES, SERVICE_CATEGORIES } from '../data/biscatoData';
-import type { ProvinceName, ServiceCategoryId, ServiceRequest } from '../types/biscato';
+import type { GeoCoordinates, ProvinceName, ServiceCategoryId, ServiceRequest } from '../types/biscato';
 
 interface NewRequestModalProps {
   isOpen: boolean;
   initialCategory?: Exclude<ServiceCategoryId, 'all'>;
   targetProviderName?: string;
+  clientCoordinates: GeoCoordinates | null;
+  onRequestLocation: () => void;
   onClose: () => void;
-  onCreateRequest: (request: Omit<ServiceRequest, 'id' | 'status' | 'publishedLabel' | 'distanceKm' | 'clientVerified'>) => void;
+  onCreateRequest: (request: Omit<ServiceRequest, 'id' | 'status' | 'publishedLabel' | 'distanceKm' | 'clientVerified'>) => Promise<boolean>;
 }
+
+const REQUEST_DRAFT_KEY = 'biscato.request-draft.v1';
 
 export function NewRequestModal({
   isOpen,
   initialCategory = 'canalizacao',
   targetProviderName,
+  clientCoordinates,
+  onRequestLocation,
   onClose,
   onCreateRequest,
 }: NewRequestModalProps) {
@@ -26,35 +32,103 @@ export function NewRequestModal({
   const [budgetMinMT, setBudgetMinMT] = useState('2500');
   const [budgetMaxMT, setBudgetMaxMT] = useState('4500');
   const [description, setDescription] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    if (isOpen) {
-      setCategory(initialCategory);
+    if (!isOpen) return;
+    setCategory(initialCategory);
+    try {
+      const savedDraft = window.localStorage.getItem(REQUEST_DRAFT_KEY);
+      if (!savedDraft) return;
+      const draft = JSON.parse(savedDraft) as Partial<{
+        title: string;
+        category: Exclude<ServiceCategoryId, 'all'>;
+        province: ProvinceName;
+        neighborhood: string;
+        urgency: 'Urgente' | 'Esta semana' | 'Flexível';
+        budgetMinMT: string;
+        budgetMaxMT: string;
+        description: string;
+      }>;
+      if (draft.title) setTitle(draft.title);
+      if (draft.category) setCategory(draft.category);
+      if (draft.province) setProvince(draft.province);
+      if (draft.neighborhood) setNeighborhood(draft.neighborhood);
+      if (draft.urgency) setUrgency(draft.urgency);
+      if (draft.budgetMinMT) setBudgetMinMT(draft.budgetMinMT);
+      if (draft.budgetMaxMT) setBudgetMaxMT(draft.budgetMaxMT);
+      if (draft.description) setDescription(draft.description);
+    } catch {
+      window.localStorage.removeItem(REQUEST_DRAFT_KEY);
     }
   }, [isOpen, initialCategory]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+    window.localStorage.setItem(REQUEST_DRAFT_KEY, JSON.stringify({
+      title, category, province, neighborhood, urgency, budgetMinMT, budgetMaxMT, description,
+    }));
+  }, [isOpen, title, category, province, neighborhood, urgency, budgetMinMT, budgetMaxMT, description]);
+
+  useEffect(() => {
+    if (clientCoordinates) {
+      setFieldErrors((previous) => {
+        const remaining = { ...previous };
+        delete remaining.location;
+        return remaining;
+      });
+    }
+  }, [clientCoordinates]);
+
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const minVal = Math.max(300, Number(budgetMinMT) || 2000);
-    const maxVal = Math.max(minVal, Number(budgetMaxMT) || minVal + 1500);
-    onCreateRequest({
-      title: title.trim() || `Serviço de ${SERVICE_CATEGORIES.find((c) => c.id === category)?.label ?? 'Manutenção'}`,
-      category,
-      province,
-      neighborhood: neighborhood.trim() || 'Centro',
-      urgency,
-      budgetMinMT: minVal,
-      budgetMaxMT: maxVal,
-      description:
-        description.trim() ||
-        'Necessito de orçamento detalhado com prazo de execução e garantia Biscato.',
-    });
+    const nextErrors: Record<string, string> = {};
+    const minVal = Number(budgetMinMT);
+    const maxVal = Number(budgetMaxMT);
+
+    if (title.trim().length < 5) nextErrors.title = 'O título deve ter pelo menos 5 caracteres.';
+    if (!clientCoordinates) nextErrors.location = 'Partilhe a localização para limitar o pedido a prestadores até 10 km.';
+    if (description.trim().length < 10) nextErrors.description = 'Descreva o trabalho com pelo menos 10 caracteres.';
+    if (description.trim().length > 2000) nextErrors.description = 'A descrição não pode ultrapassar 2000 caracteres.';
+    if (!Number.isFinite(minVal) || minVal < 300) nextErrors.budgetMinMT = 'O orçamento mínimo é de 300 MT.';
+    if (!Number.isFinite(maxVal) || maxVal < 300) nextErrors.budgetMaxMT = 'O orçamento mínimo é de 300 MT.';
+    if (Number.isFinite(minVal) && Number.isFinite(maxVal) && maxVal < minVal) {
+      nextErrors.budgetMaxMT = 'O orçamento máximo deve ser igual ou maior que o mínimo.';
+    }
+
+    setFieldErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) return;
+
+    setIsSubmitting(true);
+    let created = false;
+    try {
+      created = await onCreateRequest({
+        title: title.trim(),
+        category,
+        province,
+        neighborhood: neighborhood.trim() || 'Centro',
+        urgency,
+        budgetMinMT: minVal,
+        budgetMaxMT: maxVal,
+        description: description.trim(),
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+    if (!created) return;
+    window.localStorage.removeItem(REQUEST_DRAFT_KEY);
     setTitle('');
     setDescription('');
+    setFieldErrors({});
     onClose();
   };
+
+  const renderError = (field: string) => fieldErrors[field] ? (
+    <p className="mt-1 text-xs font-medium text-[#B42318]" role="alert">{fieldErrors[field]}</p>
+  ) : null;
 
   return (
     <div
@@ -86,18 +160,28 @@ export function NewRequestModal({
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="flex flex-col gap-2 rounded-xl border border-[#C9E3D8] bg-[#E7F3EE] p-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="flex items-start gap-2 text-xs leading-relaxed text-[#245B48]">
+              <MapPin className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+              {clientCoordinates ? 'Localização partilhada. O frontend mostra prestadores com localização confirmada até 10 km.' : 'A localização é necessária para limitar prestadores a um raio máximo de 10 km.'}
+            </p>
+            {!clientCoordinates && <button type="button" onClick={onRequestLocation} className="min-h-9 shrink-0 rounded-lg bg-[#066E53] px-3 text-xs font-semibold text-white">Partilhar localização</button>}
+          </div>
+          {renderError('location')}
           <div>
             <label className="block text-xs font-semibold text-[#10201B] mb-1.5">
               O que precisa de resolver?
             </label>
             <input
               type="text"
+              maxLength={120}
               required
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Ex: Substituir torneira e reparar infiltração na cozinha"
               className="w-full h-11 px-3.5 rounded-xl border border-[#D4DDD9] text-sm text-[#10201B] outline-none focus:border-[#066E53]"
             />
+            {renderError('title')}
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -181,6 +265,7 @@ export function NewRequestModal({
                 onChange={(e) => setBudgetMinMT(e.target.value)}
                 className="w-full h-11 px-3 rounded-xl border border-[#D4DDD9] font-mono text-sm text-[#10201B] outline-none focus:border-[#066E53] tabular-nums"
               />
+              {renderError('budgetMinMT')}
             </div>
             <div>
               <label className="block text-xs font-semibold text-[#10201B] mb-1.5">
@@ -195,21 +280,27 @@ export function NewRequestModal({
                 onChange={(e) => setBudgetMaxMT(e.target.value)}
                 className="w-full h-11 px-3 rounded-xl border border-[#D4DDD9] font-mono text-sm text-[#10201B] outline-none focus:border-[#066E53] tabular-nums"
               />
+              {renderError('budgetMaxMT')}
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-[#10201B] mb-1.5">
-              Descrição do trabalho
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs font-semibold text-[#10201B]">
+                Descrição do trabalho
+              </label>
+              <span className="text-[11px] text-[#718079] tabular-nums">{description.length}/2000</span>
+            </div>
             <textarea
               rows={3}
+              maxLength={2000}
               required
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Descreva medidas, materiais já disponíveis ou horários preferenciais..."
               className="w-full p-3 rounded-xl border border-[#D4DDD9] text-sm text-[#10201B] outline-none focus:border-[#066E53]"
             />
+            {renderError('description')}
           </div>
 
           <div className="bg-[#E7F3EE] rounded-xl p-3 flex items-start gap-2.5 text-xs text-[#054A38]">
@@ -223,15 +314,17 @@ export function NewRequestModal({
             <button
               type="button"
               onClick={onClose}
+              disabled={isSubmitting}
               className="h-11 px-4 rounded-xl border border-[#D4DDD9] text-sm font-semibold text-[#10201B] hover:bg-[#F6F7F5] cursor-pointer"
             >
               Cancelar
             </button>
             <button
               type="submit"
-              className="h-11 px-5 rounded-xl bg-[#F4811F] hover:bg-[#DD6E0F] text-white text-sm font-semibold cursor-pointer"
+              disabled={isSubmitting}
+              className="h-11 px-5 rounded-xl bg-[#F4811F] hover:bg-[#DD6E0F] text-white text-sm font-semibold cursor-pointer disabled:opacity-60 disabled:cursor-wait"
             >
-              Publicar e Receber Propostas
+              {isSubmitting ? 'A publicar…' : 'Publicar e Receber Propostas'}
             </button>
           </div>
         </form>

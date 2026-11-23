@@ -106,19 +106,8 @@ export function TradeIllustration({ category, className = 'w-full h-36' }: Trade
 }
 
 export function PortfolioArtwork({ tone, title }: { tone: 'emerald' | 'amber' | 'slate'; title: string }) {
-  const palette =
-    tone === 'emerald'
-      ? { bg: 'from-[#125B47] to-[#083B2D]', accent: '#F4811F' }
-      : tone === 'amber'
-        ? { bg: 'from-[#9A5B25] to-[#5E3411]', accent: '#9EE0CA' }
-        : { bg: 'from-[#324640] to-[#1A2622]', accent: '#F4811F' };
-
   return (
-    <div className={`relative h-28 rounded-xl bg-gradient-to-br ${palette.bg} p-3.5 flex flex-col justify-between overflow-hidden`}>
-      <svg viewBox="0 0 180 80" className="absolute right-0 top-0 h-full w-32 opacity-20" fill="none" aria-hidden="true">
-        <circle cx="135" cy="25" r="42" stroke="#FFFFFF" strokeWidth="1.5" />
-        <rect x="92" y="42" width="60" height="30" rx="6" fill={palette.accent} />
-      </svg>
+    <div className={`relative h-28 rounded-[8px] ${tone === 'emerald' ? 'bg-[#125B47]' : tone === 'amber' ? 'bg-[#74502F]' : 'bg-[#324640]'} p-3.5 flex flex-col justify-between overflow-hidden`}>
       <span className="relative z-10 text-[11px] font-medium text-white/75">Registo verificado</span>
       <span className="relative z-10 text-sm font-semibold text-white leading-snug">{title}</span>
     </div>
