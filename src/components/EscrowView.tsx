@@ -3,25 +3,28 @@ import {
   AlertTriangle,
   Briefcase,
   CheckCircle2,
-  CreditCard,
   Lock,
   MessageSquare,
   Send,
   ShieldAlert,
   ShieldCheck,
-  Smartphone,
   Star,
   Unlock,
 } from 'lucide-react';
 import type { EscrowTransaction, PaymentMethodId, ProviderProfile } from '../types/biscato';
 import { formatMT } from '../utils/formatters';
+import { PaymentCheckoutModal } from './PaymentCheckoutModal';
 
 interface EscrowViewProps {
   escrow: EscrowTransaction;
   provider: ProviderProfile;
+  isClient: boolean;
+  isProvider: boolean;
+  paymentPhone: string;
   onChangePaymentMethod: (method: PaymentMethodId) => void;
   onFundEscrow: () => void;
   onSendMessage: (text: string) => void;
+  onDeclareCompletion: () => void;
   onReleaseEscrow: (rating: number, reviewText: string) => void;
   onOpenDispute: (reason: string) => void;
 }
@@ -36,15 +39,20 @@ const PAYMENT_OPTIONS: { id: PaymentMethodId; label: string; detail: string }[] 
 export function EscrowView({
   escrow,
   provider,
+  isClient,
+  isProvider,
+  paymentPhone,
   onChangePaymentMethod,
   onFundEscrow,
   onSendMessage,
+  onDeclareCompletion,
   onReleaseEscrow,
   onOpenDispute,
 }: EscrowViewProps) {
   const [chatInput, setChatInput] = useState('');
   const [showReleaseModal, setShowReleaseModal] = useState(false);
   const [showDisputeModal, setShowDisputeModal] = useState(false);
+  const [showPaymentCheckout, setShowPaymentCheckout] = useState(false);
   const [rating, setRating] = useState(5);
   const [reviewComment, setReviewComment] = useState(
     'Trabalho concluído conforme o orçamento aprovado, com acabamento limpo e dentro do prazo.'
@@ -67,16 +75,14 @@ export function EscrowView({
   return (
     <div className="space-y-8">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+      <div className="editorial-rule flex flex-col md:flex-row md:items-end justify-between gap-5 pt-6">
         <div>
-          <p className="text-xs font-semibold text-[#066E53]">
-            04. Status da Custódia (Escrow) · Proteção em cada etapa
-          </p>
-          <h1 className="font-display text-2xl sm:text-3xl font-bold text-[#10201B] mt-1">
-            Pagamento retido e mediação
+          <p className="section-kicker mb-3">Estado do serviço</p>
+          <h1 className="font-display text-3xl sm:text-4xl font-bold tracking-tight text-[#162820]">
+            Pagamento protegido e mediação
           </h1>
-          <p className="text-sm text-[#52635D] mt-1">
-            O valor pago via M-Pesa, e-Mola ou Mkesh permanece protegido na Biscato até confirmar a execução.
+          <p className="text-sm sm:text-base text-[#52635D] mt-2 max-w-2xl">
+            Acompanhe o valor desde o pagamento até à conclusão, sem perder o contexto da obra ou do prestador.
           </p>
         </div>
 
@@ -86,242 +92,251 @@ export function EscrowView({
       </div>
 
       {/* Main 2-Column Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">
         {/* Left Column: Custody Card + Timeline + Actions (Screen 04 from cls_f9822802.png) */}
-        <div className="lg:col-span-5 space-y-5">
+        <div className="min-w-0 lg:col-span-5 space-y-5">
           {/* Deep Emerald Value Protected Card */}
-          <div className="rounded-3xl bg-[#066E53] text-white p-6 sm:p-7 text-center space-y-3">
-            <div className="w-12 h-12 rounded-full bg-white/15 flex items-center justify-center mx-auto">
-              {escrow.stage === 'released' ? (
-                <Unlock className="w-6 h-6 text-[#AEE6D4]" aria-hidden="true" />
-              ) : (
-                <Lock className="w-6 h-6 text-white" aria-hidden="true" />
+          <div className="border-y border-[#1F6652] bg-[#1F6652] text-white p-6 sm:p-7 rounded-2xl">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-full bg-white/15 flex items-center justify-center">
+                {escrow.stage === 'released' ? (
+                  <Unlock className="w-6 h-6 text-[#AEE6D4]" aria-hidden="true" />
+                ) : (
+                  <Lock className="w-6 h-6 text-white" aria-hidden="true" />
+                )}
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-[#AEE6D4]">
+                  {escrow.stage === 'awaiting_payment'
+                    ? 'Aguardando Depósito em Custódia'
+                    : escrow.stage === 'released'
+                      ? 'Valor Libertado ao Prestador'
+                    : escrow.stage === 'provider_completed'
+                      ? 'Conclusão declarada · aguarda o cliente'
+                    : escrow.stage === 'disputed'
+                        ? 'Em Mediação e Análise'
+                        : 'Valor Protegido em Custódia'}
+                </p>
+                <p className="font-mono text-4xl font-bold tabular-nums">
+                  {formatMT(escrow.amountMT)}
+                </p>
+                <p className="text-sm text-white/85">
+                  {escrow.serviceTitle} · {provider.name}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Payment method entry */}
+          {isClient && escrow.stage === 'awaiting_payment' ? <div className="bg-white border border-[#E1E7E4] rounded-2xl p-5 space-y-3">
+              <div className="flex items-center justify-between">
+                <h2 className="font-display text-sm font-bold text-[#10201B]">
+                  Pagamento em custódia
+                </h2>
+                <span className="text-xs text-[#066E53] font-medium">Valor protegido</span>
+              </div>
+              <p className="text-sm leading-relaxed text-[#52635D]">Escolha a carteira móvel e confirme o número numa tela própria antes de reter {formatMT(escrow.amountMT)}.</p>
+
+              {escrow.stage === 'awaiting_payment' && (
+                <button
+                  type="button"
+                  onClick={() => setShowPaymentCheckout(true)}
+                  className="w-full h-11 rounded-xl bg-[#F4811F] hover:bg-[#DD6E0F] text-white text-sm font-semibold transition-colors cursor-pointer"
+                >
+                  Escolher carteira móvel
+                </button>
               )}
-            </div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-[#AEE6D4]">
-              {escrow.stage === 'awaiting_payment'
-                ? 'Aguardando Depósito em Custódia'
-                : escrow.stage === 'released'
-                  ? 'Valor Libertado ao Prestador'
-                  : escrow.stage === 'disputed'
-                    ? 'Em Mediação e Análise'
-                    : 'Valor Protegido em Custódia'}
-            </p>
-            <p className="font-mono text-4xl font-bold tabular-nums">
-              {formatMT(escrow.amountMT)}
-            </p>
-            <p className="text-sm text-white/85">
-              {escrow.serviceTitle} · {provider.name}
-            </p>
-          </div>
-
-          {/* Payment Method Selector (when awaiting payment or editable) */}
-          <div className="bg-white border border-[#E1E7E4] rounded-2xl p-5 space-y-3">
-            <div className="flex items-center justify-between">
-              <h2 className="font-display text-sm font-bold text-[#10201B]">
-                Meio de pagamento local
-              </h2>
-              <span className="text-xs text-[#066E53] font-medium">Sem custos ocultos</span>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2.5">
-              {PAYMENT_OPTIONS.map((opt) => {
-                const isSelected = escrow.paymentMethod === opt.id;
-                return (
-                  <button
-                    key={opt.id}
-                    type="button"
-                    onClick={() => onChangePaymentMethod(opt.id)}
-                    className={`text-left p-3 rounded-xl border transition-colors cursor-pointer ${
-                      isSelected
-                        ? 'border-[#066E53] bg-[#E7F3EE]'
-                        : 'border-[#E1E7E4] hover:border-[#066E53]/40 bg-white'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-[#10201B]">{opt.label}</span>
-                      {opt.id === 'card' ? (
-                        <CreditCard className="w-3.5 h-3.5 text-[#066E53]" aria-hidden="true" />
-                      ) : (
-                        <Smartphone className="w-3.5 h-3.5 text-[#066E53]" aria-hidden="true" />
-                      )}
-                    </div>
-                    <span className="block text-[11px] text-[#52635D] mt-0.5 leading-tight">
-                      {opt.detail}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-
-            {escrow.stage === 'awaiting_payment' && (
-              <button
-                type="button"
-                onClick={onFundEscrow}
-                className="w-full h-11 rounded-xl bg-[#F4811F] hover:bg-[#DD6E0F] text-white text-sm font-semibold transition-colors cursor-pointer"
-              >
-                Pagar {formatMT(escrow.amountMT)} e Reter em Custódia
-              </button>
-            )}
-          </div>
+          </div> : isClient ? (
+              <p className="bg-[#E7F3EE] border border-[#C9E3D8] rounded-xl p-4 text-sm text-[#245B48]">
+                Meio de pagamento seleccionado: {PAYMENT_OPTIONS.find((option) => option.id === escrow.paymentMethod)?.label ?? escrow.paymentMethod}.
+              </p>
+            ) : escrow.stage === 'awaiting_payment' ? (
+              <p className="bg-[#FFF4EA] border border-[#F3D5BA] rounded-xl p-4 text-sm text-[#744018]">
+                O pedido está à espera de pagamento do cliente. Só o titular pode escolher o meio de pagamento e confirmar.
+              </p>
+          ) : null}
 
           {/* 3-Step Custody Timeline */}
-          <div className="bg-white border border-[#E1E7E4] rounded-2xl p-5 space-y-5">
-            <h2 className="font-display text-sm font-bold text-[#10201B]">
-              Linha temporal da custódia
-            </h2>
+          <div className="bg-white border border-[#E1E7E4] rounded-2xl p-5 sm:p-6 space-y-5">
+              <h2 className="font-display text-sm font-bold text-[#10201B]">
+                Linha temporal da custódia
+              </h2>
 
-            <div className="space-y-4">
-              {/* Step 1 */}
-              <div className="flex items-start gap-3.5">
-                <div
-                  className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${
-                    escrow.stage !== 'awaiting_payment'
-                      ? 'bg-[#066E53] text-white'
-                      : 'bg-[#F6F7F5] text-[#52635D]'
-                  }`}
-                >
-                  <CheckCircle2 className="w-4 h-4" aria-hidden="true" />
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-[#10201B]">Dinheiro protegido</p>
-                  <p className="text-xs text-[#52635D]">
-                    {escrow.stage === 'awaiting_payment'
-                      ? 'Aguardando confirmação do pagamento móvel'
-                      : `Recebido em ${escrow.heldAt ?? 'Hoje'} via ${PAYMENT_OPTIONS.find((p) => p.id === escrow.paymentMethod)?.label}`}
-                  </p>
-                </div>
-              </div>
-
-              {/* Step 2 */}
-              <div className="flex items-start gap-3.5">
-                <div
-                  className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${
-                    escrow.stage === 'in_execution'
-                      ? 'bg-[#FFF1E5] text-[#C85A08]'
-                      : escrow.stage === 'released'
+              <div className="space-y-4">
+                {/* Step 1 */}
+                <div className="flex items-start gap-3.5">
+                  <div
+                    className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${
+                      escrow.stage !== 'awaiting_payment'
                         ? 'bg-[#066E53] text-white'
-                        : escrow.stage === 'disputed'
-                          ? 'bg-[#FDEAE6] text-[#B53D26]'
-                          : 'bg-[#F6F7F5] text-[#52635D]'
-                  }`}
-                >
-                  <Briefcase className="w-4 h-4" aria-hidden="true" />
+                        : 'bg-[#F6F7F5] text-[#52635D]'
+                    }`}
+                  >
+                    <CheckCircle2 className="w-4 h-4" aria-hidden="true" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-[#10201B]">Dinheiro protegido</p>
+                    <p className="text-xs text-[#52635D]">
+                      {escrow.stage === 'awaiting_payment'
+                        ? 'Aguardando confirmação do pagamento móvel'
+                        : `Recebido em ${escrow.heldAt ?? 'Hoje'} via ${PAYMENT_OPTIONS.find((p) => p.id === escrow.paymentMethod)?.label}`}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-sm font-semibold text-[#10201B]">Em execução</p>
-                  <p className="text-xs text-[#52635D]">
-                    Previsão de conclusão: {escrow.expectedCompletion ?? 'Em 3 dias'}
+
+                {/* Step 2 */}
+                <div className="flex items-start gap-3.5">
+                  <div
+                    className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${
+                      escrow.stage === 'in_execution'
+                        ? 'bg-[#FFF1E5] text-[#C85A08]'
+                        : escrow.stage === 'provider_completed'
+                          ? 'bg-[#E7F3EE] text-[#066E53]'
+                        : escrow.stage === 'released'
+                          ? 'bg-[#066E53] text-white'
+                          : escrow.stage === 'disputed'
+                            ? 'bg-[#FDEAE6] text-[#B53D26]'
+                            : 'bg-[#F6F7F5] text-[#52635D]'
+                    }`}
+                  >
+                    <Briefcase className="w-4 h-4" aria-hidden="true" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-[#10201B]">
+                      {escrow.stage === 'provider_completed' || escrow.stage === 'released'
+                        ? 'Conclusão do serviço'
+                        : 'Em execução'}
+                    </p>
+                    <p className="text-xs text-[#52635D]">
+                      {escrow.stage === 'provider_completed'
+                        ? 'Aguarda a confirmação do cliente ou a abertura de uma mediação.'
+                        : `Previsão de conclusão: ${escrow.expectedCompletion ?? 'Em 3 dias'}`}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Step 3 */}
+                <div className="flex items-start gap-3.5">
+                  <div
+                    className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${
+                      escrow.stage === 'released'
+                        ? 'bg-[#066E53] text-white'
+                        : 'bg-[#F6F7F5] text-[#52635D]'
+                    }`}
+                  >
+                    <Unlock className="w-4 h-4" aria-hidden="true" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-[#10201B]">Valor liberado</p>
+                    <p className="text-xs text-[#52635D]">
+                      {escrow.stage === 'released'
+                        ? `Libertado em ${escrow.releasedAt ?? 'Hoje'} · +${escrow.creditsEarnedOnRelease} créditos ao prestador`
+                        : 'Após a sua confirmação de conclusão do trabalho'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Protective anti-bypass notice */}
+              <div className="bg-[#E7F3EE] rounded-xl p-3.5 flex items-start gap-3">
+                <ShieldCheck className="w-5 h-5 text-[#066E53] shrink-0 mt-0.5" aria-hidden="true" />
+                <div className="text-xs text-[#054A38] space-y-0.5">
+                  <p className="font-bold">Não pagar novamente por fora</p>
+                  <p>
+                    O profissional já sabe que o valor está garantido. Pagamentos feitos fora da plataforma perdem a cobertura de até {escrow.warrantyCoveragePercent}% ({formatMT(maxWarrantyCoverageMT)}) e o direito a reembolso.
                   </p>
                 </div>
               </div>
 
-              {/* Step 3 */}
-              <div className="flex items-start gap-3.5">
-                <div
-                  className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${
-                    escrow.stage === 'released'
-                      ? 'bg-[#066E53] text-white'
-                      : 'bg-[#F6F7F5] text-[#52635D]'
-                  }`}
-                >
-                  <Unlock className="w-4 h-4" aria-hidden="true" />
+              {/* Financial & Fee Transparency */}
+              <div className="pt-2 border-t border-[#E1E7E4] space-y-1.5 text-xs">
+                <div className="flex justify-between text-[#52635D]">
+                  <span>Valor em custódia</span>
+                  <span className="font-mono text-[#10201B] tabular-nums">{formatMT(escrow.amountMT)}</span>
                 </div>
-                <div>
-                  <p className="text-sm font-semibold text-[#10201B]">Valor liberado</p>
-                  <p className="text-xs text-[#52635D]">
-                    {escrow.stage === 'released'
-                      ? `Libertado em ${escrow.releasedAt ?? 'Hoje'} · +${escrow.creditsEarnedOnRelease} créditos ao prestador`
-                      : 'Após a sua confirmação de conclusão do trabalho'}
-                  </p>
+                <div className="flex justify-between text-[#52635D]">
+                  <span>Taxa aplicada ({escrow.appliedFeePercent}%)</span>
+                  <span className="font-mono text-[#10201B] tabular-nums">{formatMT(feeAmountMT)}</span>
                 </div>
+                <div className="flex justify-between font-semibold text-[#10201B] pt-1">
+                  <span>Líquido para o prestador</span>
+                  <span className="font-mono text-[#066E53] tabular-nums">{formatMT(providerNetMT)}</span>
+                </div>
+                <p className="text-[11px] text-[#52635D] pt-0.5">{escrow.feeReason}</p>
               </div>
-            </div>
 
-            {/* Protective anti-bypass notice */}
-            <div className="bg-[#E7F3EE] rounded-xl p-3.5 flex items-start gap-3">
-              <ShieldCheck className="w-5 h-5 text-[#066E53] shrink-0 mt-0.5" aria-hidden="true" />
-              <div className="text-xs text-[#054A38] space-y-0.5">
-                <p className="font-bold">Não pagar novamente por fora</p>
-                <p>
-                  O profissional já sabe que o valor está garantido. Pagamentos feitos fora da plataforma perdem a cobertura de até {escrow.warrantyCoveragePercent}% ({formatMT(maxWarrantyCoverageMT)}) e o direito a reembolso.
-                </p>
-              </div>
-            </div>
-
-            {/* Financial & Fee Transparency */}
-            <div className="pt-2 border-t border-[#E1E7E4] space-y-1.5 text-xs">
-              <div className="flex justify-between text-[#52635D]">
-                <span>Valor em custódia</span>
-                <span className="font-mono text-[#10201B] tabular-nums">{formatMT(escrow.amountMT)}</span>
-              </div>
-              <div className="flex justify-between text-[#52635D]">
-                <span>Taxa aplicada ({escrow.appliedFeePercent}%)</span>
-                <span className="font-mono text-[#10201B] tabular-nums">{formatMT(feeAmountMT)}</span>
-              </div>
-              <div className="flex justify-between font-semibold text-[#10201B] pt-1">
-                <span>Líquido para o prestador</span>
-                <span className="font-mono text-[#066E53] tabular-nums">{formatMT(providerNetMT)}</span>
-              </div>
-              <p className="text-[11px] text-[#52635D] pt-0.5">{escrow.feeReason}</p>
-            </div>
-
-            {/* Primary Escrow Actions */}
-            {(escrow.stage === 'funds_held' || escrow.stage === 'in_execution') && (
-              <div className="space-y-2.5 pt-1">
+              {/* Primary Escrow Actions */}
+              {isProvider && escrow.stage === 'in_execution' && (
                 <button
                   type="button"
-                  onClick={() => setShowReleaseModal(true)}
+                  onClick={onDeclareCompletion}
                   className="w-full h-12 rounded-xl bg-[#066E53] hover:bg-[#055741] text-white text-sm font-semibold transition-colors cursor-pointer"
                 >
-                  Confirmar Conclusão e Libertar Valor
+                  Declarar serviço concluído
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setShowDisputeModal(true)}
-                  className="w-full h-10 rounded-xl text-xs font-semibold text-[#B53D26] hover:bg-[#FDEAE6] transition-colors cursor-pointer"
-                >
-                  Preciso de ajuda / Acionar garantia (até 50% cobertura)
-                </button>
-              </div>
-            )}
+              )}
 
-            {escrow.stage === 'released' && (
-              <div className="bg-[#E7F3EE] rounded-xl p-4 space-y-1">
-                <p className="text-sm font-bold text-[#066E53]">
-                  Serviço concluído e avaliado ({escrow.clientRating ?? 5} ★)
+              {isClient && escrow.stage === 'in_execution' && (
+                <p className="text-sm text-[#52635D] bg-[#F6F7F5] rounded-xl p-3">
+                  O prestador ainda está a executar o serviço. Poderá confirmar a conclusão ou pedir mediação depois da declaração.
                 </p>
-                <p className="text-xs text-[#2B6655]">
-                  "{escrow.clientReviewText}"
-                </p>
-              </div>
-            )}
+              )}
 
-            {escrow.stage === 'disputed' && (
-              <div className="bg-[#FDEAE6] rounded-xl p-4 space-y-1 text-[#8D2916]">
-                <div className="flex items-center gap-2 font-bold text-sm">
-                  <ShieldAlert className="w-4 h-4 shrink-0" aria-hidden="true" />
-                  <span>Mediação Biscato aberta</span>
+              {isClient && escrow.stage === 'provider_completed' && (
+                <div className="space-y-2.5 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setShowReleaseModal(true)}
+                    className="w-full h-12 rounded-xl bg-[#066E53] hover:bg-[#055741] text-white text-sm font-semibold transition-colors cursor-pointer"
+                  >
+                    Confirmar Conclusão e Libertar Valor
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowDisputeModal(true)}
+                    className="w-full h-10 rounded-xl text-xs font-semibold text-[#B53D26] hover:bg-[#FDEAE6] transition-colors cursor-pointer"
+                  >
+                    Preciso de ajuda / Acionar garantia (até 50% cobertura)
+                  </button>
                 </div>
-                <p className="text-xs">
-                  Motivo registado: {escrow.disputeReason}. O valor de {formatMT(escrow.amountMT)} permanece congelado até resolução ou reembolso/cobertura de até 50%.
-                </p>
-              </div>
-            )}
+              )}
+
+              {escrow.stage === 'released' && (
+                <div className="bg-[#E7F3EE] rounded-xl p-4 space-y-1">
+                  <p className="text-sm font-bold text-[#066E53]">
+                    Serviço concluído e avaliado ({escrow.clientRating ?? 5} ★)
+                  </p>
+                  <p className="text-xs text-[#2B6655]">
+                    "{escrow.clientReviewText}"
+                  </p>
+                </div>
+              )}
+
+              {escrow.stage === 'disputed' && (
+                <div className="bg-[#FDEAE6] rounded-xl p-4 space-y-1 text-[#8D2916]">
+                  <div className="flex items-center gap-2 font-bold text-sm">
+                    <ShieldAlert className="w-4 h-4 shrink-0" aria-hidden="true" />
+                    <span>Mediação Biscato aberta</span>
+                  </div>
+                  <p className="text-xs">
+                    Motivo registado: {escrow.disputeReason}. O valor de {formatMT(escrow.amountMT)} permanece congelado até resolução ou reembolso/cobertura de até 50%.
+                  </p>
+                </div>
+              )}
           </div>
         </div>
 
         {/* Right Column: Execution Chat & Protection Rules */}
-        <div className="lg:col-span-7 space-y-5">
+        <div className="min-w-0 lg:col-span-7 space-y-5">
           {/* Interactive Chat */}
-          <div className="bg-white border border-[#E1E7E4] rounded-2xl overflow-hidden flex flex-col">
-            <div className="px-5 py-4 border-b border-[#E1E7E4] flex items-center justify-between">
+          <div className="min-w-0 bg-white border border-[#E1E7E4] rounded-2xl overflow-hidden flex flex-col">
+            <div className="min-w-0 px-4 sm:px-5 py-4 border-b border-[#E1E7E4] flex items-center justify-between gap-3">
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-full bg-[#066E53] text-white font-display font-bold text-xs flex items-center justify-center">
                   {provider.initials}
                 </div>
-                <div>
-                  <h2 className="font-display text-sm font-bold text-[#10201B]">
+                <div className="min-w-0">
+                  <h2 className="font-display text-sm font-bold text-[#10201B] break-words">
                     Acompanhamento com {provider.name}
                   </h2>
                   <p className="text-xs text-[#52635D]">
@@ -332,13 +347,13 @@ export function EscrowView({
               <MessageSquare className="w-4 h-4 text-[#066E53]" aria-hidden="true" />
             </div>
 
-            <div className="p-5 space-y-3 max-h-[380px] overflow-y-auto bg-[#F6F7F5]">
+            <div className="min-h-64 p-4 sm:p-5 space-y-3 max-h-[420px] overflow-y-auto bg-[#F6F7F5]">
               {escrow.messages.map((msg) => {
                 if (msg.sender === 'system') {
                   return (
                     <div key={msg.id} className="bg-white border border-[#E1E7E4] rounded-xl p-3 text-xs text-[#52635D] text-center">
                       <span className="font-semibold text-[#066E53]">{msg.senderName}: </span>
-                      {msg.text}
+                      <span className="whitespace-pre-wrap break-words">{msg.text}</span>
                     </div>
                   );
                 }
@@ -373,7 +388,7 @@ export function EscrowView({
                 onChange={(e) => setChatInput(e.target.value)}
                 placeholder="Escreva uma mensagem ou instrução sobre o serviço..."
                 aria-label="Mensagem para o prestador"
-                className="flex-1 h-11 px-4 rounded-xl bg-[#F6F7F5] text-sm text-[#10201B] placeholder:text-[#6B7C76] outline-none focus:bg-white focus:ring-2 focus:ring-[#066E53]/25"
+                className="min-w-0 flex-1 h-11 px-3 sm:px-4 rounded-xl bg-[#F6F7F5] text-sm text-[#10201B] placeholder:text-[#6B7C76] outline-none focus:bg-white focus:ring-2 focus:ring-[#066E53]/25"
               />
               <button
                 type="submit"
@@ -390,7 +405,7 @@ export function EscrowView({
             <h2 className="font-display text-base font-bold text-[#10201B]">
               Política de Proteção, Reembolso e Créditos
             </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 text-xs">
               <div className="space-y-1">
                 <p className="font-semibold text-[#066E53]">Reembolso em Escrow</p>
                 <p className="text-[#52635D] leading-relaxed">
@@ -414,8 +429,21 @@ export function EscrowView({
         </div>
       </div>
 
+      {isClient && showPaymentCheckout && (
+        <PaymentCheckoutModal
+          amountMT={escrow.amountMT}
+          serviceTitle={escrow.serviceTitle}
+          providerName={provider.name}
+          method={escrow.paymentMethod}
+          initialPhone={paymentPhone}
+          onClose={() => setShowPaymentCheckout(false)}
+          onChangeMethod={onChangePaymentMethod}
+          onConfirm={onFundEscrow}
+        />
+      )}
+
       {/* Confirm Release & Review Modal */}
-      {showReleaseModal && (
+      {isClient && showReleaseModal && (
         <div
           className="fixed inset-0 z-50 bg-black/45 backdrop-blur-xs flex items-center justify-center p-4"
           role="dialog"
@@ -488,7 +516,7 @@ export function EscrowView({
       )}
 
       {/* Dispute / Warranty Coverage Modal */}
-      {showDisputeModal && (
+      {isClient && showDisputeModal && (
         <div
           className="fixed inset-0 z-50 bg-black/45 backdrop-blur-xs flex items-center justify-center p-4"
           role="dialog"

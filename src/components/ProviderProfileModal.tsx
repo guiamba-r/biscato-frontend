@@ -4,6 +4,7 @@ import { getErrorMessage } from '../api/client';
 import { providersApi } from '../api/endpoints';
 import { mapProviderDetail } from '../api/mappers';
 import type { ProviderProfile } from '../types/biscato';
+import { useSession } from '../session/SessionContext';
 import { formatMT } from '../utils/formatters';
 import { PortfolioArtwork } from './TradeArtwork';
 
@@ -34,6 +35,7 @@ export function ProviderProfileModal({
   onClose,
   onRequestQuote,
 }: ProviderProfileModalProps) {
+  const { isDemoSession } = useSession();
   const [detail, setDetail] = useState<ProviderProfile | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -43,6 +45,10 @@ export function ProviderProfileModal({
     setDetail(null);
     setError(null);
     if (!providerId) return;
+    if (isDemoSession) {
+      setLoading(false);
+      return;
+    }
     const controller = new AbortController();
     setLoading(true);
     providersApi
@@ -55,7 +61,7 @@ export function ProviderProfileModal({
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [providerId]);
+  }, [providerId, isDemoSession]);
 
   if (!provider) return null;
 
@@ -69,11 +75,9 @@ export function ProviderProfileModal({
       aria-modal="true"
       aria-labelledby="provider-profile-title"
     >
-      <div className="bg-white rounded-3xl border border-[#E1E7E4] w-full max-w-2xl overflow-hidden shadow-2xl my-auto">
-        <div className="px-6 py-4 border-b border-[#E1E7E4] flex items-center justify-between">
-          <span className="text-xs font-semibold text-[#066E53]">
-            03. Perfil profissional · Evidência concreta de confiança
-          </span>
+      <div className="bg-white rounded-[10px] border border-[#D5D9D3] w-full max-w-2xl overflow-hidden shadow-[0_24px_80px_rgba(22,40,32,0.18)] my-auto">
+        <div className="px-6 py-4 border-b border-[#D5D9D3] flex items-center justify-between">
+          <span className="section-kicker">Perfil profissional</span>
           <button
             type="button"
             onClick={onClose}

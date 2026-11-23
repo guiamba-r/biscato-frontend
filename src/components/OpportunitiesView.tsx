@@ -1,32 +1,38 @@
 import { useState } from 'react';
-import { Clock, MapPin, Search, Send, ShieldCheck, X } from 'lucide-react';
+import { Clock, MapPin, Search, Send, ShieldCheck, Store, X } from 'lucide-react';
 import { MOZAMBIQUE_PROVINCES, SERVICE_CATEGORIES } from '../data/biscatoData';
-import type { Proposal, ProviderProfile, ProvinceName, ServiceCategoryId, ServiceRequest } from '../types/biscato';
+import type { ProviderProfile, ProvinceName, ServiceCategoryId, ServiceRequest } from '../types/biscato';
 import { formatMT, formatMTRange } from '../utils/formatters';
 
 interface OpportunitiesViewProps {
   requests: ServiceRequest[];
-  proposals: Proposal[];
-  providers: ProviderProfile[];
-  onSubmitProposal: (requestId: string, providerId: string, priceMT: number, deadlineDays: number, note: string) => void;
-  onViewProposalsForRequest: (requestId: string) => void;
+  currentProvider: ProviderProfile;
+  proposedRequestIds: string[];
+  requestsStatus: 'idle' | 'loading' | 'ready' | 'error';
+  requestsError: string | null;
+  onRetryRequests: () => void;
+  onManageServices: () => void;
+  onSubmitProposal: (requestId: string, providerId: string, priceMT: number, deadlineDays: number, note: string) => Promise<boolean>;
 }
 
 export function OpportunitiesView({
   requests,
-  proposals,
-  providers,
+  currentProvider,
+  proposedRequestIds,
+  requestsStatus,
+  requestsError,
+  onRetryRequests,
+  onManageServices,
   onSubmitProposal,
-  onViewProposalsForRequest,
 }: OpportunitiesViewProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<ServiceCategoryId>('all');
   const [selectedProvince, setSelectedProvince] = useState<ProvinceName>('Todas as Províncias');
   const [maxRadiusKm, setMaxRadiusKm] = useState<number>(10);
   const [activeRequestModal, setActiveRequestModal] = useState<ServiceRequest | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Proposal form state
-  const [selectedProviderId, setSelectedProviderId] = useState<string>(providers[0]?.id ?? 'prov-carlos');
   const [priceInput, setPriceInput] = useState<string>('3000');
   const [deadlineInput, setDeadlineInput] = useState<string>('2');
   const [noteInput, setNoteInput] = useState<string>(
@@ -36,7 +42,7 @@ export function OpportunitiesView({
   const filteredRequests = requests.filter((req) => {
     const matchesCat = selectedCategory === 'all' || req.category === selectedCategory;
     const matchesProv = selectedProvince === 'Todas as Províncias' || req.province === selectedProvince;
-    const matchesRadius = req.distanceKm === null || req.distanceKm <= maxRadiusKm;
+    const matchesRadius = req.distanceKm !== null && req.distanceKm <= Math.min(maxRadiusKm, 10);
     const q = searchTerm.trim().toLowerCase();
     const matchesText =
       !q ||
@@ -53,34 +59,42 @@ export function OpportunitiesView({
     setActiveRequestModal(req);
   };
 
-  const handleConfirmProposal = (e: React.FormEvent) => {
+  const handleConfirmProposal = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!activeRequestModal) return;
     const parsedPrice = Math.max(200, Number(priceInput) || activeRequestModal.budgetMinMT);
     const parsedDays = Math.max(1, Number(deadlineInput) || 1);
-    onSubmitProposal(activeRequestModal.id, selectedProviderId, parsedPrice, parsedDays, noteInput);
-    const reqId = activeRequestModal.id;
-    setActiveRequestModal(null);
-    onViewProposalsForRequest(reqId);
+    setIsSubmitting(true);
+    try {
+      const submitted = await onSubmitProposal(activeRequestModal.id, currentProvider.id, parsedPrice, parsedDays, noteInput);
+      if (submitted) setActiveRequestModal(null);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
     <div className="space-y-8">
       {/* Header & Proximity Filter (Screen 01 from cls_f9822802.png) */}
-      <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4">
-        <div>
-          <p className="text-xs font-semibold text-[#066E53]">
-            01. Oportunidades · Descoberta local e decisão rápida
-          </p>
-          <h1 className="font-display text-2xl sm:text-3xl font-bold text-[#10201B] mt-1">
+      <div className="editorial-rule flex flex-col lg:flex-row lg:items-end justify-between gap-5 pt-6">
+        <div className="max-w-2xl">
+          <p className="section-kicker mb-3">Descoberta local</p>
+          <h1 className="font-display text-3xl sm:text-4xl font-bold tracking-tight text-[#162820]">
             Pedidos de serviço próximos
           </h1>
-          <p className="text-sm text-[#52635D] mt-1">
-            Filtre por localização, raio em km e orçamento disponível antes de enviar a sua proposta.
+          <p className="text-sm sm:text-base text-[#52635D] mt-2 leading-relaxed">
+            Escolha trabalhos pelo território, urgência e orçamento. Veja apenas o que interessa antes de enviar uma proposta.
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={onManageServices}
+            className="inline-flex items-center gap-2 h-11 px-4 rounded-xl border border-[#D4DDD9] bg-white text-sm font-semibold text-[#10201B] hover:border-[#066E53] cursor-pointer"
+          >
+            <Store className="w-4 h-4 text-[#066E53]" aria-hidden="true" /> Publicar serviço
+          </button>
           <div className="flex items-center gap-2 bg-white border border-[#E1E7E4] rounded-xl px-3 h-11">
             <MapPin className="w-4 h-4 text-[#066E53] shrink-0" aria-hidden="true" />
             <select
@@ -108,14 +122,14 @@ export function OpportunitiesView({
               <option value={3}>3 km</option>
               <option value={5}>5 km</option>
               <option value={8}>8 km</option>
-              <option value={15}>15 km</option>
+              <option value={10}>10 km</option>
             </select>
           </div>
         </div>
       </div>
 
       {/* Search & Category Tabs */}
-      <div className="bg-white border border-[#E1E7E4] rounded-2xl p-4 space-y-4">
+      <div className="border-y border-[#D5D9D3] py-4 space-y-4">
         <div className="relative">
           <Search className="w-4 h-4 text-[#52635D] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" aria-hidden="true" />
           <input
@@ -166,25 +180,37 @@ export function OpportunitiesView({
       </div>
 
       {/* Opportunities Grid */}
-      {filteredRequests.length === 0 ? (
+      {requestsStatus === 'loading' ? (
+        <div className="bg-white border border-[#E1E7E4] rounded-2xl p-10 text-center text-sm text-[#52635D]" role="status">
+          A carregar pedidos disponíveis…
+        </div>
+      ) : requestsStatus === 'error' ? (
+        <div className="bg-white border border-[#E1E7E4] rounded-2xl p-10 text-center space-y-3" role="alert">
+          <p className="font-semibold text-[#10201B]">Não foi possível carregar os pedidos.</p>
+          <p className="text-sm text-[#52635D]">{requestsError}</p>
+          <button type="button" onClick={onRetryRequests} className="h-11 px-5 rounded-xl bg-[#066E53] text-white text-sm font-semibold cursor-pointer">
+            Tentar novamente
+          </button>
+        </div>
+      ) : filteredRequests.length === 0 ? (
         <div className="bg-white border border-[#E1E7E4] rounded-2xl p-10 text-center space-y-3">
           <p className="font-display text-base font-semibold text-[#10201B]">
             Sem pedidos neste raio ou categoria
           </p>
           <p className="text-sm text-[#52635D]">
-            Aumente o raio para 15 km ou selecione Todas as Províncias.
+            Os pedidos sem distância confirmada ou a mais de 10 km ficam ocultos. Ajuste a categoria ou a província.
           </p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
           {filteredRequests.map((req) => {
-            const reqProposalsCount = proposals.filter((p) => p.requestId === req.id).length;
+            const alreadyProposed = proposedRequestIds.includes(req.id);
             const categoryLabel = SERVICE_CATEGORIES.find((c) => c.id === req.category)?.label ?? req.category;
 
             return (
               <article
                 key={req.id}
-                className="bg-white border border-[#E1E7E4] rounded-2xl p-5 flex flex-col justify-between gap-4 hover:border-[#066E53]/45 transition-colors"
+                className="bg-white border border-[#D5D9D3] rounded-[8px] p-5 flex flex-col justify-between gap-4 hover:border-[#1F6652] hover:-translate-y-0.5 transition-all"
               >
                 <div className="space-y-3">
                   {/* Clean unboxed metadata header */}
@@ -222,22 +248,19 @@ export function OpportunitiesView({
                     <span className="font-mono text-base font-bold text-[#10201B] tabular-nums">
                       {formatMTRange(req.budgetMinMT, req.budgetMaxMT)}
                     </span>
+                    <span className="block text-xs text-[#52635D] mt-1">
+                      {req.proposalsCount ?? 0} {req.proposalsCount === 1 ? 'proposta recebida' : 'propostas recebidas'}
+                    </span>
                   </div>
 
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
-                      onClick={() => onViewProposalsForRequest(req.id)}
-                      className="h-10 px-3.5 rounded-xl border border-[#D4DDD9] hover:bg-[#F6F7F5] text-xs font-semibold text-[#10201B] whitespace-nowrap cursor-pointer"
-                    >
-                      Propostas ({reqProposalsCount})
-                    </button>
-                    <button
-                      type="button"
                       onClick={() => openModalForRequest(req)}
-                      className="h-10 px-4 rounded-xl bg-[#066E53] hover:bg-[#055741] text-white text-xs font-semibold whitespace-nowrap cursor-pointer"
+                      disabled={isSubmitting || alreadyProposed || !!req.acceptedProposalId}
+                      className="h-10 px-4 rounded-xl bg-[#066E53] hover:bg-[#055741] text-white text-xs font-semibold whitespace-nowrap cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      Enviar Proposta
+                      {alreadyProposed ? 'Proposta enviada' : req.acceptedProposalId ? 'Pedido aceite' : 'Enviar Proposta'}
                     </button>
                   </div>
                 </div>
@@ -282,21 +305,9 @@ export function OpportunitiesView({
                 <label className="block text-xs font-semibold text-[#10201B] mb-1.5">
                   Perfil do Prestador
                 </label>
-                <select
-                  value={selectedProviderId}
-                  onChange={(e) => setSelectedProviderId(e.target.value)}
-                  className="w-full h-11 px-3 rounded-xl border border-[#D4DDD9] bg-white text-sm text-[#10201B] outline-none focus:border-[#066E53]"
-                >
-                  {providers.map((prov) => (
-                    <option key={prov.id} value={prov.id}>
-                      {prov.name} — {prov.specialty} (
-                      {prov.subscriptionState === 'tolerance_30d'
-                        ? 'Tolerância 30d · 10% taxa'
-                        : 'Subscrição ativa'}
-                      )
-                    </option>
-                  ))}
-                </select>
+                <div className="w-full min-h-11 px-3 py-2.5 rounded-xl border border-[#D4DDD9] bg-[#F6F7F5] text-sm text-[#10201B]">
+                  {currentProvider.name} — {currentProvider.specialty}
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -336,6 +347,7 @@ export function OpportunitiesView({
                 </label>
                 <textarea
                   rows={3}
+                  maxLength={1000}
                   required
                   value={noteInput}
                   onChange={(e) => setNoteInput(e.target.value)}
@@ -354,16 +366,18 @@ export function OpportunitiesView({
                 <button
                   type="button"
                   onClick={() => setActiveRequestModal(null)}
+                  disabled={isSubmitting}
                   className="h-11 px-4 rounded-xl border border-[#D4DDD9] text-sm font-semibold text-[#10201B] hover:bg-[#F6F7F5] cursor-pointer"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="inline-flex items-center gap-2 h-11 px-5 rounded-xl bg-[#066E53] hover:bg-[#055741] text-white text-sm font-semibold cursor-pointer"
+                  disabled={isSubmitting}
+                  className="inline-flex items-center gap-2 h-11 px-5 rounded-xl bg-[#066E53] hover:bg-[#055741] text-white text-sm font-semibold cursor-pointer disabled:opacity-60 disabled:cursor-wait"
                 >
                   <Send className="w-4 h-4" aria-hidden="true" />
-                  <span>Confirmar Proposta</span>
+                  <span>{isSubmitting ? 'A enviar…' : 'Confirmar Proposta'}</span>
                 </button>
               </div>
             </form>

@@ -90,6 +90,9 @@ export interface ApiProviderSummary {
   category: string;
   province: string;
   neighborhood: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  isAvailable?: boolean;
   bio: string;
   yearsExperience: number;
   hourlyOrBaseMT: number;

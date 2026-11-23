@@ -1,4 +1,9 @@
-export type AppTab = 'home' | 'explore' | 'opportunities' | 'proposals' | 'escrow' | 'business' | 'auth';
+export type AppTab = 'home' | 'explore' | 'services' | 'opportunities' | 'proposals' | 'messages' | 'support' | 'profile' | 'escrow' | 'business' | 'auth';
+
+export interface GeoCoordinates {
+  latitude: number;
+  longitude: number;
+}
 
 export type UserRole = 'client' | 'provider';
 
@@ -33,7 +38,7 @@ export type ClientPlanState = 'free_trial_30d' | 'monthly_client' | 'enterprise_
 
 export type PaymentMethodId = 'mpesa' | 'emola' | 'mkesh' | 'card';
 
-export type EscrowStage = 'awaiting_payment' | 'funds_held' | 'in_execution' | 'released' | 'disputed';
+export type EscrowStage = 'awaiting_payment' | 'funds_held' | 'in_execution' | 'provider_completed' | 'released' | 'disputed';
 
 export interface ServiceCategory {
   id: Exclude<ServiceCategoryId, 'all'>;
@@ -70,6 +75,8 @@ export interface ProviderProfile {
   category: Exclude<ServiceCategoryId, 'all'>;
   province: ProvinceName;
   neighborhood: string;
+  coordinates?: GeoCoordinates | null;
+  isAvailable?: boolean;
   rating: number;
   reviewsCount: number;
   completedJobs: number;
@@ -88,6 +95,10 @@ export interface ProviderProfile {
 
 export interface ServiceRequest {
   id: string;
+  clientId?: string;
+  acceptedProposalId?: string;
+  targetProviderId?: string | null;
+  proposalsCount?: number;
   title: string;
   category: Exclude<ServiceCategoryId, 'all'>;
   province: ProvinceName;
@@ -100,6 +111,21 @@ export interface ServiceRequest {
   budgetMaxMT: number;
   description: string;
   status: 'open' | 'in_escrow' | 'completed';
+}
+
+export interface ProviderServiceListing {
+  id: string;
+  providerId: string;
+  providerName: string;
+  providerInitials: string;
+  title: string;
+  category: Exclude<ServiceCategoryId, 'all'>;
+  province: ProvinceName;
+  neighborhood: string;
+  priceMT: number;
+  description: string;
+  publishedAt: string;
+  status: 'active' | 'paused';
 }
 
 export interface Proposal {
@@ -119,6 +145,18 @@ export interface ChatMessage {
   senderName: string;
   text: string;
   timestamp: string;
+}
+
+export interface ChatConversation {
+  id: string;
+  requestId: string;
+  requestTitle: string;
+  clientId: string;
+  clientName: string;
+  providerId: string;
+  providerName: string;
+  updatedAt: string;
+  messages: ChatMessage[];
 }
 
 export interface EscrowTransaction {

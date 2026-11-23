@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowUpDown, BadgeCheck, Lock, ShieldCheck, Star } from 'lucide-react';
+import { ArrowUpDown, BadgeCheck, Lock, MessageCircle, ShieldCheck, Star } from 'lucide-react';
 import type { Proposal, ProviderProfile, ServiceRequest } from '../types/biscato';
 import { formatMT } from '../utils/formatters';
 
@@ -8,8 +8,15 @@ interface CompareProposalsViewProps {
   selectedRequestId: string;
   onSelectRequestId: (id: string) => void;
   proposals: Proposal[];
+  requestsStatus: 'idle' | 'loading' | 'ready' | 'error';
+  requestsError: string | null;
+  proposalsStatus: 'idle' | 'loading' | 'ready' | 'error';
+  proposalsError: string | null;
+  onRetryRequests: () => void;
+  onRetryProposals: () => void;
   providers: ProviderProfile[];
   onViewProvider: (provider: ProviderProfile) => void;
+  onMessageProvider: (proposal: Proposal, request: ServiceRequest, provider: ProviderProfile) => void;
   onAcceptProposal: (proposal: Proposal, request: ServiceRequest, provider: ProviderProfile) => void;
   onOpenNewRequest: () => void;
 }
@@ -21,8 +28,15 @@ export function CompareProposalsView({
   selectedRequestId,
   onSelectRequestId,
   proposals,
+  requestsStatus,
+  requestsError,
+  proposalsStatus,
+  proposalsError,
+  onRetryRequests,
+  onRetryProposals,
   providers,
   onViewProvider,
+  onMessageProvider,
   onAcceptProposal,
   onOpenNewRequest,
 }: CompareProposalsViewProps) {
@@ -51,12 +65,10 @@ export function CompareProposalsView({
   return (
     <div className="space-y-8">
       {/* Screen 02 Header */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+      <div className="editorial-rule flex flex-col md:flex-row md:items-end justify-between gap-5 pt-6">
         <div>
-          <p className="text-xs font-semibold text-[#066E53]">
-            02. Comparar propostas · Escolha informada sem sobrecarga
-          </p>
-          <h1 className="font-display text-2xl sm:text-3xl font-bold text-[#10201B] mt-1">
+          <p className="section-kicker mb-3">Escolha informada</p>
+          <h1 className="font-display text-3xl sm:text-4xl font-bold tracking-tight text-[#162820]">
             Comparador de orçamentos
           </h1>
           <p className="text-sm text-[#52635D] mt-1">
@@ -83,46 +95,46 @@ export function CompareProposalsView({
         </div>
       </div>
 
-      {/* Emerald Summary Card matching Screen 02 of cls_f9822802.png */}
-      {activeRequest && (
-        <section className="rounded-2xl bg-[#066E53] text-white p-6 sm:p-7 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="space-y-1.5">
-            <p className="text-xs font-semibold text-[#AEE6D4]">
-              {activeRequest.neighborhood} · {activeRequest.province} · {activeRequest.publishedLabel}
-            </p>
-            <h2 className="font-display text-xl sm:text-2xl font-bold">
-              {sorted.length} {sorted.length === 1 ? 'proposta recebida' : 'propostas recebidas'} — {activeRequest.title}
-            </h2>
-            <p className="text-sm text-white/85 max-w-2xl">
-              {activeRequest.description}
-            </p>
-          </div>
-
-          <div className="flex items-center gap-2 bg-white/12 rounded-xl px-3.5 py-2.5 shrink-0">
-            <ArrowUpDown className="w-4 h-4 text-[#F4811F]" aria-hidden="true" />
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as SortKey)}
-              aria-label="Ordenar propostas"
-              className="bg-transparent text-sm font-semibold text-white outline-none cursor-pointer"
-            >
-              <option value="recommended" className="text-[#10201B]">Ordenar: Recomendados</option>
-              <option value="lowest_price" className="text-[#10201B]">Menor Preço (MT)</option>
-              <option value="fastest" className="text-[#10201B]">Menor Prazo (dias)</option>
-              <option value="highest_rating" className="text-[#10201B]">Melhor Avaliação</option>
-            </select>
-          </div>
-        </section>
-      )}
-
       {/* Proposals Comparison Cards */}
-      {sorted.length === 0 ? (
+      {requestsStatus === 'loading' ? (
+        <div className="bg-white border border-[#E1E7E4] rounded-2xl p-10 text-center text-sm text-[#52635D]" role="status">
+          A carregar os seus pedidos…
+        </div>
+      ) : requestsStatus === 'error' ? (
+        <div className="bg-white border border-[#E1E7E4] rounded-2xl p-10 text-center space-y-3" role="alert">
+          <p className="font-semibold text-[#10201B]">Não foi possível carregar os seus pedidos.</p>
+          <p className="text-sm text-[#52635D]">{requestsError}</p>
+          <button type="button" onClick={onRetryRequests} className="h-11 px-5 rounded-xl bg-[#066E53] text-white text-sm font-semibold cursor-pointer">
+            Tentar novamente
+          </button>
+        </div>
+      ) : requests.length === 0 ? (
+        <div className="bg-white border border-[#E1E7E4] rounded-2xl p-10 text-center space-y-3">
+          <p className="font-display text-base font-semibold text-[#10201B]">Ainda não publicou nenhum pedido</p>
+          <p className="text-sm text-[#52635D] max-w-md mx-auto">Publique o serviço de que precisa. Os prestadores poderão enviar propostas para comparar aqui.</p>
+          <button type="button" onClick={onOpenNewRequest} className="inline-flex items-center px-4 py-2.5 rounded-xl bg-[#066E53] text-white text-sm font-semibold cursor-pointer">
+            Publicar um pedido
+          </button>
+        </div>
+      ) : proposalsStatus === 'loading' ? (
+        <div className="bg-white border border-[#E1E7E4] rounded-2xl p-10 text-center text-sm text-[#52635D]" role="status">
+          A carregar propostas para este pedido…
+        </div>
+      ) : proposalsStatus === 'error' ? (
+        <div className="bg-white border border-[#E1E7E4] rounded-2xl p-10 text-center space-y-3" role="alert">
+          <p className="font-semibold text-[#10201B]">Não foi possível carregar as propostas.</p>
+          <p className="text-sm text-[#52635D]">{proposalsError}</p>
+          <button type="button" onClick={onRetryProposals} className="h-11 px-5 rounded-xl bg-[#066E53] text-white text-sm font-semibold cursor-pointer">
+            Tentar novamente
+          </button>
+        </div>
+      ) : sorted.length === 0 ? (
         <div className="bg-white border border-[#E1E7E4] rounded-2xl p-10 text-center space-y-3">
           <p className="font-display text-base font-semibold text-[#10201B]">
             Ainda não existem propostas submetidas para este pedido
           </p>
           <p className="text-sm text-[#52635D] max-w-md mx-auto">
-            Aceda ao separador Oportunidades para simular o envio de uma proposta de um prestador ou publique um novo pedido.
+            O pedido está publicado. Os prestadores podem enviar propostas; quando chegarem, poderá comparar preço, prazo e condições aqui.
           </p>
           <button
             type="button"
@@ -139,10 +151,10 @@ export function CompareProposalsView({
             return (
               <article
                 key={proposal.id}
-                className={`relative bg-white rounded-2xl p-6 flex flex-col justify-between gap-5 transition-colors ${
+                className={`relative bg-white rounded-[8px] p-6 flex flex-col justify-between gap-5 transition-all ${
                   isHighlighted
-                    ? 'border-2 border-[#066E53]'
-                    : 'border border-[#E1E7E4]'
+                    ? 'border-2 border-[#1F6652] shadow-[0_10px_28px_rgba(22,40,32,0.06)]'
+                    : 'border border-[#D5D9D3] hover:border-[#AEB8B1]'
                 }`}
               >
                 {isHighlighted && (
@@ -227,8 +239,15 @@ export function CompareProposalsView({
                   </button>
                   <button
                     type="button"
+                    onClick={() => activeRequest && onMessageProvider(proposal, activeRequest, provider)}
+                    className="inline-flex items-center justify-center gap-2 h-11 px-4 rounded-xl border border-[#066E53] text-sm font-semibold text-[#066E53] hover:bg-[#EAF5F1] whitespace-nowrap transition-colors cursor-pointer"
+                  >
+                    <MessageCircle className="w-4 h-4" aria-hidden="true" /> Conversar
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => activeRequest && onAcceptProposal(proposal, activeRequest, provider)}
-                    className="h-11 px-4 rounded-xl bg-[#066E53] hover:bg-[#055741] text-white text-sm font-semibold whitespace-nowrap transition-colors cursor-pointer"
+                    className="h-11 px-4 rounded-xl bg-[#066E53] hover:bg-[#055741] text-white text-sm font-semibold whitespace-nowrap transition-colors cursor-pointer sm:col-span-2"
                   >
                     Aceitar e Reter em Custódia
                   </button>
