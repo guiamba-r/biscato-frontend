@@ -47,7 +47,7 @@ const WALKTHROUGH_STEPS = [
     id: 2,
     step: '03',
     title: 'Pague só após confirmar a obra',
-    summary: 'O pagamento via M-Pesa, e-Mola ou Mkesh fica protegido na Biscato e só é libertado com o seu OK.',
+    summary: 'O pagamento via M-Pesa ou e-Mola fica protegido na Biscato e só é libertado com o seu OK.',
     ctaLabel: 'Abrir custódia',
     targetTab: 'escrow' as AppTab,
   },
@@ -57,7 +57,7 @@ const CLIENT_HIGHLIGHTS = [
   {
     icon: Lock,
     title: 'Zero adiantamentos perdidos',
-    copy: 'O valor fica retido em custódia (M-Pesa, e-Mola ou Mkesh) e só passa para o técnico quando confirmar a conclusão.',
+    copy: 'O valor fica retido em custódia (M-Pesa ou e-Mola) e só passa para o técnico quando confirmar a conclusão.',
     accent: 'bg-[#E7F3EE] text-[#066E53]',
   },
   {
@@ -288,7 +288,7 @@ export function LandingView({
         {[
           ['Profissionais verificados', 'Identidade e histórico confirmados'],
           ['Propostas transparentes', 'Preço, prazo e condições visíveis'],
-          ['Pagamento protegido', 'M-Pesa, e-Mola e Mkesh'],
+          ['Pagamento protegido', 'M-Pesa e e-Mola'],
           ['Suporte humano', 'Mediação quando algo corre mal'],
         ].map(([title, copy]) => (
           <div key={title} className="px-3 sm:px-5 py-4 sm:py-5">

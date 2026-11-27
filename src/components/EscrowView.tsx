@@ -22,7 +22,7 @@ interface EscrowViewProps {
   isProvider: boolean;
   paymentPhone: string;
   onChangePaymentMethod: (method: PaymentMethodId) => void;
-  onFundEscrow: () => void;
+  onFundEscrow: (details: { method: PaymentMethodId; phone: string }) => void;
   onSendMessage: (text: string) => void;
   onDeclareCompletion: () => void;
   onReleaseEscrow: (rating: number, reviewText: string) => void;
@@ -32,8 +32,6 @@ interface EscrowViewProps {
 const PAYMENT_OPTIONS: { id: PaymentMethodId; label: string; detail: string }[] = [
   { id: 'mpesa', label: 'M-Pesa', detail: 'Vodacom · Confirmação instantânea' },
   { id: 'emola', label: 'e-Mola', detail: 'Movitel · Carteira móvel' },
-  { id: 'mkesh', label: 'Mkesh', detail: 'Tmcel · Pagamento digital' },
-  { id: 'card', label: 'Cartão / Parcelas', detail: 'Visa / Mastercard · Até 3x' },
 ];
 
 export function EscrowView({

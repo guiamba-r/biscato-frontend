@@ -548,12 +548,12 @@ export default function App() {
       notify('Pedir orçamento está disponível apenas para contas de cliente.');
       return;
     }
-    if (!clientCoordinates) {
+    if (!clientCoordinates && !isDemoSession) {
       setActiveTab('explore');
       notify('Partilhe a localização no início para ver e pedir serviços num raio de até 10 km.');
       return;
     }
-    if (provider && !publicProviders.some((item) => item.id === provider.id)) {
+    if (provider && !isDemoSession && !publicProviders.some((item) => item.id === provider.id)) {
       notify('Este prestador não tem localização confirmada dentro do raio de 10 km.');
       return;
     }
@@ -730,11 +730,11 @@ export default function App() {
       notify('Só uma conta de cliente pode publicar um pedido.');
       return false;
     }
-    if (!clientCoordinates) {
+    if (!clientCoordinates && !isDemoSession) {
       notify('A localização é necessária para limitar o pedido a 10 km.');
       return false;
     }
-    if (targetProvider && !publicProviders.some((provider) => provider.id === targetProvider.id)) {
+    if (targetProvider && !isDemoSession && !publicProviders.some((provider) => provider.id === targetProvider.id)) {
       notify('O prestador seleccionado não está confirmado no raio de 10 km.');
       return false;
     }
@@ -929,7 +929,7 @@ export default function App() {
           id: `msg-sys-${Date.now()}`,
           sender: 'system',
           senderName: 'Custódia Biscato',
-          text: `Proposta de ${provider.name} selecionada. Selecione M-Pesa, e-Mola, Mkesh ou Cartão para reter o valor em segurança.`,
+          text: `Proposta de ${provider.name} selecionada. Selecione M-Pesa ou e-Mola para simular o pagamento em custódia.`,
           timestamp: 'Agora',
         },
       ],
@@ -943,7 +943,7 @@ export default function App() {
     notify('Proposta selecionada. Conclua o pagamento em custódia para iniciar.');
   };
 
-  const handleFundEscrow = () => {
+  const handleFundEscrow = ({ method, phone }: { method: PaymentMethodId; phone: string }) => {
     if (!user || user.role !== 'client' || !ownsEscrow(user)) {
       notify('Só o cliente responsável pelo serviço pode iniciar o pagamento.');
       if (!user) navigateToTab('escrow');
@@ -957,6 +957,7 @@ export default function App() {
 
     setEscrow((prev) => ({
       ...prev,
+      paymentMethod: method,
       stage: 'in_execution',
       heldAt: `Hoje, ${nowTime}`,
       messages: [
@@ -965,7 +966,7 @@ export default function App() {
           id: `msg-fund-${Date.now()}`,
           sender: 'system',
           senderName: 'Custódia Biscato',
-          text: `Simulação de pagamento concluída por ${escrow.paymentMethod}. A custódia foi actualizada neste frontend.`,
+          text: `Simulação de pagamento concluída por ${method} para o número terminado em ${phone.replace(/\D/g, '').slice(-4)}. A custódia foi actualizada apenas neste frontend.`,
           timestamp: nowTime,
         },
         {
@@ -1230,7 +1231,7 @@ export default function App() {
   const showProvidersNotice = activeTab === 'home' || activeTab === 'explore';
   const publicProviders = providersWithMockData.filter((provider) => {
     if (!provider.biVerified || !providerIsOperational(provider) || provider.isAvailable === false) return false;
-    if (user?.role !== 'client') return true;
+    if (user?.role !== 'client' || isDemoSession) return true;
     if (!clientCoordinates || !provider.coordinates) return false;
     return distanceBetweenKm(clientCoordinates, provider.coordinates) <= 10;
   });
@@ -1276,7 +1277,7 @@ export default function App() {
           </p>
         )}
 
-        {showProvidersNotice && user?.role === 'client' && (
+        {showProvidersNotice && user?.role === 'client' && !isDemoSession && (
           <section className="mb-5 flex flex-col gap-3 rounded-2xl border border-[#C9E3D8] bg-[#E7F3EE] p-4 sm:flex-row sm:items-center sm:justify-between" aria-live="polite">
             <div className="min-w-0">
               <p className="text-sm font-semibold text-[#054A38]">Prestadores disponíveis até 10 km</p>
@@ -1389,6 +1390,7 @@ export default function App() {
         {activeTab === 'opportunities' && user?.role === 'provider' && currentProvider && providerIsOperational(currentProvider) && (
           <OpportunitiesView
             requests={requests.filter((request) => request.status === 'open' && request.clientId !== user.id)}
+            demoMode={isDemoSession}
             currentProvider={currentProvider}
             proposedRequestIds={providerProposedRequestIds}
             requestsStatus={requestsStatus}
@@ -1481,7 +1483,7 @@ export default function App() {
           <div className="flex items-center gap-4">
             {user && canParticipateInEscrow(user) && (
               <button type="button" onClick={() => navigateToTab('escrow')} className="hover:text-[#066E53] cursor-pointer">
-                M-Pesa · e-Mola · Mkesh
+                M-Pesa · e-Mola
               </button>
             )}
           </div>
@@ -1499,6 +1501,7 @@ export default function App() {
         initialCategory={newRequestCategory}
         targetProviderName={targetProvider?.name}
         clientCoordinates={clientCoordinates}
+        requireLocation={!isDemoSession}
         onRequestLocation={requestClientLocation}
         onClose={() => setIsNewRequestOpen(false)}
         onCreateRequest={handleCreateRequest}
