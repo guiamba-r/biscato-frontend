@@ -68,6 +68,25 @@ const PASSWORD_MESSAGE = 'A palavra-passe deve ter pelo menos 8 caracteres, com 
 const INPUT_CLASS =
   'w-full rounded-xl border border-[#E1E7E4] bg-white px-3 py-2 text-sm text-[#10201B] focus:outline-none focus:ring-2 focus:ring-[#066E53]';
 
+function GoogleMark({ className = 'h-5 w-5' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 48 48" aria-hidden="true">
+      <path fill="#4285F4" d="M48 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h13.48c-.6 3.2-2.39 5.91-5.09 7.74v6.32h8.24C45.45 38.84 48 32.12 48 24.55Z" />
+      <path fill="#34A853" d="M24 48c6.48 0 11.93-2.15 15.9-5.82l-8.24-6.32c-2.15 1.45-4.89 2.3-7.66 2.3-5.9 0-10.9-3.98-12.7-9.33H2.79v6.52C6.75 42.9 14.7 48 24 48Z" />
+      <path fill="#FBBC05" d="M11.3 28.83a14.4 14.4 0 0 1 0-9.66v-6.52H2.79a24 24 0 0 0 0 22.7l8.51-6.52Z" />
+      <path fill="#EA4335" d="M24 9.5c3.53 0 6.7 1.21 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.7 0 6.75 5.1 2.79 12.65l8.51 6.52C13.1 13.48 18.1 9.5 24 9.5Z" />
+    </svg>
+  );
+}
+
+function AppleMark({ className = 'h-5 w-5' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 384 512" aria-hidden="true">
+      <path fill="currentColor" d="M318.7 268.7c-.2-36.7 30-54.3 31.4-55.2-17.1-25-43.7-28.4-53.2-28.8-22.6-2.3-44.1 13.3-55.5 13.3-11.7 0-29-13.1-48-12.7-24.6.4-47.7 14.3-60.3 36.1-25.7 44.5-6.5 110.1 18.2 146.2 12 17.6 26.1 37.3 44.9 36.6 18.2-.7 25-11.8 46.9-11.8 21.7 0 28.1 11.8 47.1 11.4 19.6-.3 31.8-17.7 43.4-35.5 13.9-20.1 19.5-39.9 19.7-40.9-.5-.2-37.9-14.4-38.6-57.7ZM281.3 160.8c10.1-12.1 17-28.5 15.1-45.1-14.6.7-32.8 10.2-43.2 22.1-9.1 10.5-17.2 27.5-15.1 43.5 16.3 1.2 32.9-8.2 43.2-20.5Z" />
+    </svg>
+  );
+}
+
 function buildRegisterBody(form: FormState, role: RegisterRole): RegisterBody | string {
   if (!PASSWORD_PATTERN.test(form.password)) return PASSWORD_MESSAGE;
 
@@ -465,9 +484,9 @@ export function AuthView({ initialMode = 'login', initialRole = 'client', adminO
           <div className="mt-4">
             <div className="grid grid-cols-3 gap-2 mb-4">
               {[
-                { label: 'Google', mark: 'G' },
-                { label: 'Facebook', mark: 'f' },
-                { label: 'Apple', mark: '●' },
+                { label: 'Google', icon: <GoogleMark className="h-4 w-4" /> },
+                { label: 'Facebook', icon: <span className="text-base font-bold text-[#1877F2]">f</span> },
+                { label: 'Apple', icon: <AppleMark className="h-4 w-4" /> },
               ].map((provider) => (
                 <button
                   key={provider.label}
@@ -476,7 +495,7 @@ export function AuthView({ initialMode = 'login', initialRole = 'client', adminO
                   className="h-11 rounded-lg border border-[#CAD3CE] bg-white text-xs font-bold text-[#10201B] hover:border-[#066E53] hover:bg-[#F6F8F6] transition-colors cursor-pointer"
                   aria-label={`Continuar com ${provider.label}`}
                 >
-                  <span className="mr-1.5 inline-flex h-5 w-5 items-center justify-center rounded-full border border-[#DCE3DF] text-sm" aria-hidden="true">{provider.mark}</span>
+                  <span className="mr-1.5 inline-flex h-5 w-5 items-center justify-center" aria-hidden="true">{provider.icon}</span>
                   {provider.label}
                 </button>
               ))}
@@ -493,24 +512,7 @@ export function AuthView({ initialMode = 'login', initialRole = 'client', adminO
               className="w-full h-11 rounded-xl border border-[#D4DDD9] text-[#52635D] flex items-center justify-center gap-2 transition-colors hover:border-[#9FB1A9]"
               aria-label="Iniciar sessão com o Google"
             >
-              <svg className="w-5 h-5" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
-                <path
-                  fill="#4285F4"
-                  d="M23.49 12.27c-.73 0-1.44.06-2.14.17-1.67.23-3.24.73-4.67 1.44-1.3.67-2.48 1.54-3.5 2.57l-3.6-3.6C15.1 10.1 18.49 7.5 22.5 6.24c1.3-.27 2.63-.41 3.98-.41 2.67 0 5.24.67 7.5 1.98 2.4 1.5 4.24 3.6 5.5 6.1 1.3 2.57 2 5.4 2 8.5s-.7 5.93-2 8.5c-1.26 2.5-3.1 4.6-5.5 6.1-2.26 1.31-4.83 1.98-7.5 1.98-1.35 0-2.68-.14-3.98-.41-4.01-1.26-7.4-3.86-9.9-7.24l3.6-3.6c1.02 1.03 2.2 1.9 3.5 2.57 1.43.71 3 .21 4.67-.02 1.07-.15 2.14-.31 3.24-.49.73-.1 1.44-.21 2.14-.21 1.5 0 3.01.2 4.5.59 1.5.39 2.93 1 4.24 1.76 1.3.67 2.48 1.54 3.5 2.57l3.6-3.6c-1.02-1.03-2.2-1.9-3.5-2.57-1.43-.71-3-.21-4.67.02-1.07.15-2.14.31-3.24.49-.73.1-1.44.21-2.14.21z"
-                />
-                <path
-                  fill="#34A853"
-                  d="M23.49 12.27c-.73 0-1.44.06-2.14.17-1.67.23-3.24.73-4.67 1.44-1.3.67-2.48 1.54-3.5 2.57l-3.6-3.6C15.1 10.1 18.49 7.5 22.5 6.24c1.3-.27 2.63-.41 3.98-.41 2.67 0 5.24.67 7.5 1.98 2.4 1.5 4.24 3.6 5.5 6.1 1.3 2.57 2 5.4 2 8.5s-.7 5.93-2 8.5c-1.26 2.5-3.1 4.6-5.5 6.1-2.26 1.31-4.83 1.98-7.5 1.98-1.35 0-2.68-.14-3.98-.41-4.01-1.26-7.4-3.86-9.9-7.24l3.6-3.6c1.02 1.03 2.2 1.9 3.5 2.57 1.43.71 3 .21 4.67-.02 1.07-.15 2.14-.31 3.24-.49.73-.1 1.44-.21 2.14-.21 1.5 0 3.01.2 4.5.59 1.5.39 2.93 1 4.24 1.76 1.3.67 2.48 1.54 3.5 2.57l3.6-3.6c-1.02-1.03-2.2-1.9-3.5-2.57-1.43-.71-3-.21-4.67.02-1.07.15-2.14.31-3.24.49-.73.1-1.44.21-2.14.21z"
-                />
-                <path
-                  fill="#FBBC05"
-                  d="M23.49 12.27c-.73 0-1.44.06-2.14.17-1.67.23-3.24.73-4.67 1.44-1.3.67-2.48 1.54-3.5 2.57l-3.6-3.6C15.1 10.1 18.49 7.5 22.5 6.24c1.3-.27 2.63-.41 3.98-.41 2.67 0 5.24.67 7.5 1.98 2.4 1.5 4.24 3.6 5.5 6.1 1.3 2.57 2 5.4 2 8.5s-.7 5.93-2 8.5c-1.26 2.5-3.1 4.6-5.5 6.1-2.26 1.31-4.83 1.98-7.5 1.98-1.35 0-2.68-.14-3.98-.41-4.01-1.26-7.4-3.86-9.9-7.24l3.6-3.6c1.02 1.03 2.2 1.9 3.5 2.57 1.43.71 3 .21 4.67-.02 1.07-.15 2.14-.31 3.24-.49.73-.1 1.44-.21 2.14-.21 1.5 0 3.01.2 4.5.59 1.5.39 2.93 1 4.24 1.76 1.3.67 2.48 1.54 3.5 2.57l3.6-3.6c-1.02-1.03-2.2-1.9-3.5-2.57-1.43-.71-3-.21-4.67.02-1.07.15-2.14.31-3.24.49-.73.1-1.44.21-2.14.21z"
-                />
-                <path
-                  fill="#EA4335"
-                  d="M23.49 12.27c-.73 0-1.44.06-2.14.17-1.67.23-3.24.73-4.67 1.44-1.3.67-2.48 1.54-3.5 2.57l-3.6-3.6C15.1 10.1 18.49 7.5 22.5 6.24c1.3-.27 2.63-.41 3.98-.41 2.67 0 5.24.67 7.5 1.98 2.4 1.5 4.24 3.6 5.5 6.1 1.3 2.57 2 5.4 2 8.5s-.7 5.93-2 8.5c-1.26 2.5-3.1 4.6-5.5 6.1-2.26 1.31-4.83 1.98-7.5 1.98-1.35 0-2.68-.14-3.98-.41-4.01-1.26-7.4-3.86-9.9-7.24l3.6-3.6c1.02 1.03 2.2 1.9 3.5 2.57 1.43.71 3 .21 4.67-.02 1.07-.15 2.14-.31 3.24-.49.73-.1 1.44-.21 2.14-.21 1.5 0 3.01.2 4.5.59 1.5.39 2.93 1 4.24 1.76 1.3.67 2.48 1.54 3.5 2.57l3.6-3.6c-1.02-1.03-2.2-1.9-3.5-2.57-1.43-.71-3-.21-4.67.02-1.07.15-2.14.31-3.24.49-.73.1-1.44.21-2.14.21z"
-                />
-              </svg>
+              <GoogleMark />
               Iniciar sessão com o Google
             </button>
             <button
@@ -533,12 +535,7 @@ export function AuthView({ initialMode = 'login', initialRole = 'client', adminO
               className="mt-2 w-full h-11 rounded-xl border border-[#D4DDD9] text-[#52635D] flex items-center justify-center gap-2 transition-colors hover:border-[#9FB1A9]"
               aria-label="Iniciar sessão com a Apple"
             >
-              <svg className="w-5 h-5" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
-                <path
-                  fill="#000"
-                  d="M24 0C10.745 0 0 10.745 0 24c0 11.673 8.388 21.354 19.25 23.485v-16.6H13.5v-6.885h5.75V18.1c0-5.684 2.957-8.85 8.1-8.85 2.344 0 4.84.438 4.84.438v5.344h-2.725c-2.688 0-3.515 1.67-3.515 3.385v4.012h6.25l-.875 6.885h-5.375v16.6C39.612 45.354 48 35.673 48 24c0-13.255-10.745-24-24-24z"
-                />
-              </svg>
+              <AppleMark />
               Iniciar sessão com a Apple
             </button>
           </div>

@@ -8,6 +8,7 @@ interface NewRequestModalProps {
   initialCategory?: Exclude<ServiceCategoryId, 'all'>;
   targetProviderName?: string;
   clientCoordinates: GeoCoordinates | null;
+  requireLocation?: boolean;
   onRequestLocation: () => void;
   onClose: () => void;
   onCreateRequest: (request: Omit<ServiceRequest, 'id' | 'status' | 'publishedLabel' | 'distanceKm' | 'clientVerified'>) => Promise<boolean>;
@@ -20,6 +21,7 @@ export function NewRequestModal({
   initialCategory = 'canalizacao',
   targetProviderName,
   clientCoordinates,
+  requireLocation = true,
   onRequestLocation,
   onClose,
   onCreateRequest,
@@ -90,7 +92,7 @@ export function NewRequestModal({
     const maxVal = Number(budgetMaxMT);
 
     if (title.trim().length < 5) nextErrors.title = 'O título deve ter pelo menos 5 caracteres.';
-    if (!clientCoordinates) nextErrors.location = 'Partilhe a localização para limitar o pedido a prestadores até 10 km.';
+    if (requireLocation && !clientCoordinates) nextErrors.location = 'Partilhe a localização para limitar o pedido a prestadores até 10 km.';
     if (description.trim().length < 10) nextErrors.description = 'Descreva o trabalho com pelo menos 10 caracteres.';
     if (description.trim().length > 2000) nextErrors.description = 'A descrição não pode ultrapassar 2000 caracteres.';
     if (!Number.isFinite(minVal) || minVal < 300) nextErrors.budgetMinMT = 'O orçamento mínimo é de 300 MT.';
@@ -160,14 +162,14 @@ export function NewRequestModal({
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="flex flex-col gap-2 rounded-xl border border-[#C9E3D8] bg-[#E7F3EE] p-3 sm:flex-row sm:items-center sm:justify-between">
+          {requireLocation ? <div className="flex flex-col gap-2 rounded-xl border border-[#C9E3D8] bg-[#E7F3EE] p-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="flex items-start gap-2 text-xs leading-relaxed text-[#245B48]">
               <MapPin className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
               {clientCoordinates ? 'Localização partilhada. O frontend mostra prestadores com localização confirmada até 10 km.' : 'A localização é necessária para limitar prestadores a um raio máximo de 10 km.'}
             </p>
             {!clientCoordinates && <button type="button" onClick={onRequestLocation} className="min-h-9 shrink-0 rounded-lg bg-[#066E53] px-3 text-xs font-semibold text-white">Partilhar localização</button>}
-          </div>
-          {renderError('location')}
+          </div> : <p className="rounded-xl border border-[#F0D6A8] bg-[#FFF8EA] p-3 text-xs leading-relaxed text-[#6B4811]">Modo demonstração: a localização está temporariamente desativada para testar pedidos e pagamentos.</p>}
+          {requireLocation && renderError('location')}
           <div>
             <label className="block text-xs font-semibold text-[#10201B] mb-1.5">
               O que precisa de resolver?

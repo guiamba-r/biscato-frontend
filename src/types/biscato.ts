@@ -36,7 +36,7 @@ export type ProviderSubscriptionState = 'active' | 'tolerance_30d' | 'suspended'
 
 export type ClientPlanState = 'free_trial_30d' | 'monthly_client' | 'enterprise_condo';
 
-export type PaymentMethodId = 'mpesa' | 'emola' | 'mkesh' | 'card';
+export type PaymentMethodId = 'mpesa' | 'emola';
 
 export type EscrowStage = 'awaiting_payment' | 'funds_held' | 'in_execution' | 'provider_completed' | 'released' | 'disputed';
 
